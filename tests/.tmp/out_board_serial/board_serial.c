@@ -122,7 +122,7 @@ SerialStats CollectSerialStats(u32 port_id) {
     /* empty */
 }
 
-u8* FormatSerialConfig(SerialConfig config) {
+u8* FormatSerialConfig(Board___SerialConfig config) {
     /* empty */
 }
 
@@ -184,7 +184,7 @@ SerialStats Board___CollectSerialStats(u32 port_id) {
     return stats;
 }
 
-u8* Board___FormatSerialConfig(SerialConfig config) {
+u8* Board___FormatSerialConfig(Board___SerialConfig config) {
     return 0;
 }
 

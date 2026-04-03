@@ -1,1043 +1,477 @@
-# c+ Language Definition
+# c+ Language Guide
 
-## Purpose
+This document explains what `c+` is trying to be, in plain English.
 
-`c+` is a small systems language intended for embedded and MCU development. It sits between C and C++:
+If you only remember one sentence, remember this:
 
-- lower-level and predictable like C
-- more structured and ergonomic than C
-- intentionally much smaller and stricter than C++
-- designed to transpile into ordinary C that can build on top of existing C ecosystems such as STM32Cube-generated code
+- `c+` is a small embedded language that rewrites into ordinary C
+
+It is meant for code that has to live comfortably on top of existing C ecosystems:
+
+- STM32Cube
+- vendor HALs
+- board support packages
+- RTOS APIs
+- plain old C drivers
+
+The goal is not to replace C.
+The goal is to make embedded C code less ugly and less error-prone without dragging in the worst parts of C++.
+
+## What c+ Is
+
+`c+` sits between C and C++:
+
+- as predictable as C
+- more structured than C
+- much smaller than C++
+- designed for MCUs and systems code
 
 The toolchain model is:
 
-1. `.cp` source files are interpreted/transpiled into `.c`
-2. `.hp` header files are interpreted/transpiled into `.h`
-3. the generated C code is compiled by `gcc`, `clang`, or a compatible C compiler
+1. write `.hp` and `.cp`
+2. transpile them into `.h` and `.c`
+3. compile the generated C with `gcc`, `clang`, or whatever embedded toolchain you already use
 
-The design goal is to add useful structure for embedded software without introducing runtime cost, hidden allocation, RTTI, exceptions, or template-heavy complexity.
+So if you already have a working C build, `c+` is supposed to fit into it, not replace it.
 
-## Design Principles
+## The Design Goal
 
-- Zero-overhead abstractions where possible
-- Output must remain readable C
-- Easy interoperability with existing C headers, HALs, BSPs, RTOSes, and vendor code
-- Deterministic behavior suitable for constrained systems
-- Minimal feature set
-- No implicit heap use
-- No exceptions
-- No inheritance-based object model
-- No `goto`
+The language tries to give you:
+
+- namespaces
+- classes without C++ runtime baggage
+- compile-time-only interfaces
+- RAII-style lifetime structure
+- cleaner naming and style enforcement
+
+But it deliberately avoids:
+
+- exceptions
+- RTTI
+- inheritance-heavy object models
+- general templates
+- hidden heap allocation
+- runtime virtual dispatch
+
+In short:
+
+- useful structure: yes
+- runtime magic: no
+
+## The Basic Shape
+
+This:
+
+```c
+namespace Board {
+
+class Thermometer {
+public:
+    u32 reading;
+    fn Reset() -> void;
+}
+
+fn Thermometer::Reset() -> void {
+    reading = 0;
+}
+
+}
+```
+
+is meant to turn into something conceptually like:
+
+```c
+typedef struct Board___Thermometer {
+    u32 reading;
+} Board___Thermometer;
+
+void Board___Thermometer___Reset(Board___Thermometer* self) {
+    self->reading = 0;
+}
+```
+
+That is the entire philosophy of the language:
+
+- keep the nice source form
+- end up with plain understandable C
 
 ## File Model
 
-### Source Files
+`c+` uses two file types:
 
-- `.cp` contains implementation code
-- `.hp` contains declarations
+- `.hp` for declarations
+- `.cp` for definitions
 
-Each `.cp` transpiles to a `.c`, and each `.hp` transpiles to a `.h`.
-
-The transpiler performs a language-aware source-to-source conversion rather than compiling directly to machine code.
-
-### Translation Unit Pairing
-
-`c+` assumes that matching basenames belong to the same logical module.
+Matching basenames are one logical module.
 
 Examples:
 
-- `uart.hp` and `uart.cp` form one module
-- `spi_bus.hp` and `spi_bus.cp` form one module
+- `uart.hp` + `uart.cp`
+- `spi_bus.hp` + `spi_bus.cp`
 
-Rules:
+Think of it exactly like ordinary C header/source pairing.
 
-- a `.hp` file declares the public surface of its matching `.cp` implementation file
-- a `.cp` file may exist without a matching `.hp` for internal-only modules
-- a `.hp` file should not have more than one matching `.cp`
-- a `.cp` file should not have more than one matching `.hp`
-- the transpiler treats a matching basename pair as the natural ownership boundary for declarations and definitions
+### Practical Meaning
 
-This keeps the model simple and maps well onto ordinary C header/source organization.
+If you have:
 
-### Inclusion Model
+- `thermo.hp`
+- `thermo.cp`
 
-`.hp` files are included from generated `.c` or other `.h` files just like ordinary C headers.
+then the transpiler treats them as one module and emits:
 
-The transpiler should preserve compatibility with existing C include flows:
+- `thermo.h`
+- `thermo.c`
 
-- `#include "foo.h"` remains valid
-- existing vendor headers can be included directly
-- raw C declarations may be allowed inside c+ files for interop
+The `.hp` file declares the public surface.
+The `.cp` file provides the bodies.
 
-## Basic Philosophy of Object Modeling
-
-`c+` supports `class`, but a class is not a C++-style inheritance object. It is a structured way to declare:
-
-- a data type
-- methods operating on that data type
-- visibility rules for API shaping
-- deterministic lifetime hooks
-
-A `class` transpiles to a C `struct` plus a set of namespaced functions.
-
-Example conceptually:
-
-```c+
-namespace drivers {
-
-class Uart {
-private:
-    int fd;
-
-public:
-    fn init(int port, int baud) -> bool;
-    fn write(byte* data, usize len) -> int;
-    fn destroy();
-}
-
-}
-```
-
-Conceptual C output:
-
-```c
-typedef struct drivers___Uart {
-    int fd;
-} drivers___Uart;
-
-bool drivers___Uart___init(drivers___Uart* self, int port, int baud);
-int drivers___Uart___write(drivers___Uart* self, byte* data, usize len);
-static void drivers___Uart___destroy(drivers___Uart* self);
-```
-
-Note: exact output form is still open in a few areas described later.
+`.cp`-only modules are also allowed for internal code.
 
 ## Namespaces
 
-`c+` supports namespaces.
+Namespaces are compile-time only.
 
-Syntax:
-
-```c+
-namespace drivers {
-    // declarations
-}
-
-namespace board::sensors {
-    // declarations
-}
-```
-
-Semantics:
-
-- namespaces are compile-time only
-- they do not exist at runtime
-- they transpile into symbol prefixes
-- separator is `___` (three underscores) to reduce collision risk with user and vendor C symbols
-- namespace scope begins at `{` and ends at the matching `}`
-
-Examples:
-
-- `drivers::Uart` becomes `drivers___Uart`
-- `board::sensors::Imu` becomes `board___sensors___Imu`
-
-Methods on classes use the fully qualified class symbol as prefix.
+They do not exist at runtime.
+They only turn into symbol prefixes.
 
 Example:
 
-- `board::sensors::Imu.read()` becomes `board___sensors___Imu___read(...)`
+```c
+namespace Board::Sensors {
+    class Imu {
+    }
+}
+```
 
-### Naming Conventions
+becomes names like:
 
-`c+` enforces naming conventions at the language level.
+```c
+Board___Sensors___Imu
+```
 
-Rules:
-
-- namespaces must use `CamelCase`
-- classes must use `CamelCase`
-- interfaces must use `CamelCase`
-- enums must use `CamelCase`
-- methods must use `CamelCase`
-- free functions must use `CamelCase`
-- variables must use `snake_case`
-- conceptually private fields must use `_snake_case`
-
-This is intended to enforce good style immediately rather than treating it as a project convention.
+The separator is `___` on purpose, to reduce collisions with normal C names.
 
 ## Classes
 
-### Class Syntax
+`class` in `c+` does not mean “full C++ class system”.
 
-Basic form:
+It means:
 
-```c+
-class Name {
+- a struct
+- plus functions that operate on that struct
+- plus a cleaner place to define lifetime and interface rules
+
+Example:
+
+```c
+class Logger {
+public:
+    u32 count;
+    fn Reset() -> void;
+}
+```
+
+Conceptually becomes:
+
+```c
+typedef struct Logger {
+    u32 count;
+} Logger;
+
+void Logger___Reset(Logger* self);
+```
+
+So the class model is really:
+
+- data + namespaced functions
+
+not:
+
+- runtime vtables
+- hidden inheritance machinery
+
+## Public and Private
+
+Only methods can really be private in v0.
+
+Fields are always visible in the generated struct.
+
+That is intentional.
+It keeps the generated C simple and easy to debug.
+
+Example:
+
+```c
+class Uart {
 private:
-    // fields and methods
+    fn Lock() -> void;
 
 public:
-    // fields and methods
+    u32 _port_id;
+    u32 baud_rate;
 }
 ```
 
-Initial intent:
+Generated idea:
 
-- class fields become struct members
-- class methods become C functions taking `self`
-- the order of declarations in source should not matter within the class as long as names are unique
+- `Lock` becomes `static` in the `.c`
+- `_port_id` still appears in the struct
+- `_port_id` gets a `// private` comment in generated C where appropriate
 
-### Representation
-
-A class transpiles to:
-
-- one `typedef struct`
-- declarations for exported methods in the generated header
-- method definitions in the generated source
-
-Methods are not stored in the object as function pointers by default. Dispatch is static.
-
-### Visibility
-
-`public` and `private` are compile-time visibility controls.
-
-#### `public`
-
-Public members are part of the generated external API.
-
-- public methods are emitted into the generated `.h`
-- all fields are emitted into the generated struct definition
-
-#### `private`
-
-Private members are internal to the translation unit or class implementation.
-
-Current intended rule:
-
-- private methods transpile to `static` functions in the generated `.c`
-- fields are not private; only methods can be private
-
-This keeps the generated C simple and fully visible while still allowing internal helper methods.
-
-There is no opaque-object mode in v0. Struct layout is always visible in generated headers. Private intent may be documented by generated comments only where useful.
-
-Generated header style for conceptually internal fields should use trailing comments.
-
-Example:
-
-```c
-typedef struct drivers___Uart {
-    int _fd; // private
-    int port;
-} drivers___Uart;
-```
-
-This is documentation only. The generated C layout remains fully visible and accessible.
-
-### Methods
-
-Methods are functions bound to a class by naming and implicit `self`.
-
-Possible syntax:
-
-```c+
-fn init(int port, int baud) -> bool;
-fn write(byte* data, usize len) -> int;
-fn destroy();
-```
-
-Transpiled shape:
-
-```c
-bool ns___Class___init(ns___Class* self, int port, int baud);
-int ns___Class___write(ns___Class* self, byte* data, usize len);
-void ns___Class___destroy(ns___Class* self);
-```
-
-Rules:
-
-- non-static methods receive implicit `self`
-- `self` maps to `Class* self` in C
-- method overloading is not supported, except for `construct`
-- default parameters are not supported
-- virtual dispatch is not supported
-- class-level static methods are supported
-
-Static methods transpile to ordinary C functions without a `self` parameter, still using the class-qualified symbol prefix.
-
-Example:
-
-```c+
-class Clock {
-public:
-    static fn delay_ms(uint32 ms) -> void;
-}
-```
-
-Transpiles conceptually to:
-
-```c
-void ns___Clock___delay_ms(uint32 ms);
-```
-
-### Static Variables
-
-Static variables may be declared inside a class definition.
-
-Semantics:
-
-- they do not live inside each object instance
-- they transpile to `static` file-scope variables in the generated `.c`
-- they are not exposed through the generated `.h`
-
-This makes them class-scoped storage from the c+ author's point of view, while remaining simple internal C state in code generation.
-
-### Fields
-
-Fields are ordinary data members stored inline in the struct.
-
-Intended embedded-friendly behavior:
-
-- no hidden allocations
-- no hidden base subobjects
-- no padding rules beyond the underlying C compiler's ABI
-
-All non-static fields are public in v0.
-
-### Field Naming
-
-Leading-underscore field naming is reserved for private intent.
-
-Examples:
-
-```c+
-int _count;
-int port;
-```
-
-Rules:
-
-- fields whose names begin with `_` are considered conceptually private at the c+ source level
-- the transpiler emits them into the generated struct unchanged
-- the transpiler adds trailing `// private` comments for those fields in generated code
-- fields without a leading underscore are ordinary public fields
-- all non-private variable and field names must use `snake_case`
-
-This provides lightweight source-level signaling without hiding struct layout from C.
+The underscore on fields is documentation and intent, not true hiding.
 
 ## Interfaces
 
-### Purpose
-
-`interface` provides compile-time capability checking for interchangeable MCU drivers and similar modules.
-
-This is explicitly intended for cases such as:
-
-- multiple SPI driver backends
-- board-specific GPIO implementations
-- vendor HAL vs custom bare-metal driver choices
-- mock drivers for tests
-
-An interface is not a runtime vtable by default. It is a compile-time contract.
-
-### Syntax
-
-```c+
-interface SpiBus {
-    fn transfer(byte* tx, byte* rx, usize len) -> int;
-    fn lock() -> void;
-    fn unlock() -> void;
-}
-```
-
-Rules:
-
-- interfaces may only contain method signatures
-- no fields
-- no implementation bodies
-- no constructors or destructors beyond ordinary method signatures
-
-### Fulfillment
-
-A class fulfills an interface if it defines all required method signatures with matching names and compatible types.
-
-Example:
-
-```c+
-class Stm32Spi implements SpiBus {
-public:
-    implementation fn transfer(byte* tx, byte* rx, usize len) -> int;
-    implementation fn lock() -> void;
-    implementation fn unlock() -> void;
-}
-```
-
-Rules:
-
-- a class may implement several interfaces
-- interface fulfillment is checked at transpile time
-- missing methods are a transpile error
-- signature mismatches are a transpile error
-- `implements` is mandatory
-- every method meant to satisfy an interface must be marked `implementation`
-- an `implementation` method that matches no declared interface requirement is a transpile error
-- `implementation` methods must use the exact same name as the interface method they fulfill
-
-This is intentionally similar to `override` in C++, but stricter: interface conformance must be explicit both at the class level and method level.
-
-### Runtime Use of Interfaces
-
 Interfaces are compile-time only.
 
-- no runtime vtables
-- no generated interface wrapper objects
-- no dynamic dispatch support in v0
+That means:
 
-The selected implementation is fixed by source usage and build configuration.
+- no runtime interface objects
+- no vtables
+- no dynamic dispatch
 
-## Enums
+They exist so you can say:
 
-`c+` supports enums with enforced naming and iteration rules.
+- “this class must provide these methods”
 
 Example:
 
-```c+
-enum UartState {
-    kUartStateIdle,
-    kUartStateBusy,
-    kUartStateError,
-    kUartStateN,
+```c
+interface SerialDriver {
+    fn Start() -> void;
+    fn Stop() -> void;
+    fn Send(u8* data, u32 length) -> i32;
 }
 ```
 
-Rules:
-
-- enum type names must use `CamelCase`
-- enum members must use `kConstantEnumValue` style
-- every enum must end with a trailing `...N` member
-- the trailing `...N` member is intended for iteration and bounds use
-
-### Enum `ToString`
-
-Every enum implicitly gets a generated `ToString` helper.
-
-Conceptual C output:
+And then:
 
 ```c
-const char* UartState___ToString(UartState value);
+class Uart implements SerialDriver {
+public:
+    implementation fn Start() -> void;
+    implementation fn Stop() -> void;
+    implementation fn Send(u8* data, u32 length) -> i32;
+}
 ```
 
-The generated string should be static and constant.
+Important rules:
+
+- `implements` must be written explicitly
+- interface methods must be marked `implementation`
+- the method name must match exactly
+
+This is meant for embedded “pick one concrete driver at compile time” use cases.
+
+## Constructors and Destructors
+
+`c+` uses fixed lifetime names:
+
+- `construct`
+- `destroy`
+
+Example:
+
+```c
+class Logger {
+public:
+    fn construct() -> void;
+    fn destroy() -> void;
+}
+```
+
+Construction sugar:
+
+```c
+Logger logger();
+```
+
+conceptually lowers to:
+
+```c
+Logger logger;
+Logger___construct(&logger);
+```
+
+Important v0 rule:
+
+- `construct` cannot fail
+
+For MCU code that is fine, because the intended use is mostly boot-time construction.
+If something is impossible, the model is assert/fail-fast, not exception-like recovery.
 
 ## RAII
 
-### Goal
+The language wants RAII-style cleanup.
 
-`c+` supports deterministic resource management similar in spirit to RAII, but mapped onto C-friendly code generation.
+That means:
 
-This is especially useful for:
+- local class objects should clean up automatically
+- nested member objects should be constructed and destroyed in order
+- `destroy` should run on normal scope exit and `return`
 
-- peripheral locks
-- temporary interrupt masking
-- DMA handle setup/teardown
-- buffer ownership wrappers
-- chip-select assertions
-
-### Constraints
-
-- no exceptions
-- no `goto`
-- deterministic scope-based cleanup
-
-### Proposed Semantics
-
-Objects with destructors are cleaned up automatically at scope exit.
-
-Example concept:
-
-```c+
-class LockGuard {
-public:
-    fn construct(Mutex* m);
-    fn destroy();
-}
-
-fn do_work(Mutex* m) {
-    LockGuard g(m);
-    // work
-}
-```
-
-Conceptually generated C:
+Example intent:
 
 ```c
-void do_work(Mutex* m) {
-    LockGuard g;
-    LockGuard___construct(&g, m);
-
-    // work
-
-    LockGuard___destroy(&g);
+fn Boot() -> void {
+    Logger logger();
+    return;
 }
 ```
 
-### Scope Exit Rules
+conceptually becomes:
 
-Current intended behavior:
+```c
+void Boot(void) {
+    Logger logger;
+    Logger___construct(&logger);
+    Logger___destroy(&logger);
+    return;
+}
+```
 
-- local objects with destructors are destroyed in reverse declaration order at end of scope
-- destruction occurs on `return`
-- ordinary fallthrough to the end of scope destroys locals in reverse declaration order
-- `break` and `continue` do not trigger RAII cleanup beyond what naturally occurs when the surrounding scope ends
+What is important here:
 
-Early `return` is expected to be rewritten by the transpiler into structured cleanup code.
+- source `c+` forbids user `goto`
+- generated C is allowed to use internal cleanup `goto` labels
 
-Although user-authored `goto` is forbidden, generated C may use compiler-generated cleanup labels and `goto` for RAII lowering.
+That is not a contradiction.
+It is just a practical lowering strategy.
+
+## Naming Rules
+
+The language enforces naming style on purpose.
+
+This is not “maybe later lint”.
+It is part of the language.
 
 Rules:
 
-- user-authored `goto` is forbidden in `c+`
-- transpiler-generated `goto` is allowed in emitted `.c`
-- generated `goto` may only target compiler-generated cleanup labels
-- cleanup labels destroy exactly the objects known to be live at that point
-- cleanup sections are emitted at the end of the generated function body
+- namespaces: `CamelCase`
+- classes: `CamelCase`
+- interfaces: `CamelCase`
+- enums: `CamelCase`
+- methods: `CamelCase`
+- free functions: `CamelCase`
+- variables: `snake_case`
+- conceptually private fields: `_snake_case`
 
-This allows early returns to lower cleanly without duplicating destroy sequences across many branches.
+This is meant to prevent style collapse early.
 
-### Constructors and Destructors
+## Enums
 
-Proposed convention:
-
-- `construct(...)` is the initializer hook
-- `destroy()` is the destructor hook
-
-This avoids C++ parsing ambiguity and maps cleanly to C codegen.
-
-These names are fixed in v0.
-
-### Construction Syntax
-
-User code may use constructor declaration sugar:
-
-```c+
-Foo x(1, 2);
-Bar y;
-```
-
-Semantics:
-
-- `Foo x(1, 2);` declares `x` and invokes the matching `construct(...)`
-- `Bar y;` declares `y` and invokes a zero-argument `construct()` if one exists
-- if no matching constructor exists, transpilation fails
-
-Conceptual C output:
-
-```c
-Foo x;
-Foo___construct(&x, 1, 2);
-```
-
-This keeps object creation concise while still lowering to explicit C initialization calls.
-
-### Nested Object Construction
-
-If a class contains fields whose types are themselves class types with `construct` / `destroy`, the transpiler must insert member lifetime handling automatically.
-
-Rules:
-
-- member subobjects are constructed in declaration order
-- member subobjects are destroyed in reverse declaration order
-- this applies both to normal destruction and constructor-failure cleanup
-
-This gives deterministic object composition without hidden runtime systems.
-
-### Infallible Construction
-
-`construct` may not fail in v0.
-
-Rules:
-
-- `construct` does not return a failure status
-- construction is expected to succeed for valid firmware configuration
-- impossible or invalid conditions are handled by assertion or equivalent fail-fast behavior
-- user-configurable build flags may later control how assertion/failure behavior is emitted
-
-This matches the intended MCU usage model:
-
-- objects are typically created during boot or static system bring-up
-- object graphs are fixed by firmware design rather than dynamic runtime composition
-- RAII applies only to fully constructed objects
-
-There is therefore no partial-construction recovery path in the language core for v0.
-
-### Generated Cleanup Labels
-
-When a function contains multiple object declarations, the transpiler may need several cleanup labels depending on which objects have been constructed so far.
-
-Example concept:
-
-```c+
-fn work() -> int {
-    A a;
-    if (cond1) {
-        return -1;
-    }
-
-    B b;
-    if (cond2) {
-        return -2;
-    }
-
-    return 0;
-}
-```
-
-Conceptual generated C:
-
-```c
-int work(void) {
-    int __ret;
-    A a;
-    A___construct(&a);
-
-    if (cond1) {
-        __ret = -1;
-        goto __cleanup_a;
-    }
-
-    B b;
-    B___construct(&b);
-
-    if (cond2) {
-        __ret = -2;
-        goto __cleanup_b_a;
-    }
-
-    __ret = 0;
-    goto __cleanup_b_a;
-
-__cleanup_b_a:
-    B___destroy(&b);
-__cleanup_a:
-    A___destroy(&a);
-    return __ret;
-}
-```
-
-This means:
-
-- yes, several cleanup targets may be needed
-- yes, they can still all live at the end of the generated function
-- labels should be chained so each one performs the cleanup appropriate for the set of live objects
-
-### Multiple Constructors
-
-Classes may define multiple `construct(...)` methods with different argument signatures.
+Enums are intentionally strict.
 
 Example:
 
-```c+
-class Uart {
-public:
-    fn construct();
-    fn construct(int port);
-    fn construct(int port, int baud);
-    fn destroy();
+```c
+enum DriverMode {
+    kDriverModePolling,
+    kDriverModeInterrupt,
+    kDriverModeDma,
+    kDriverModeN,
 }
 ```
 
 Rules:
 
-- overload resolution is supported only for `construct`
-- signatures must be distinguishable by parameter types and/or arity
-- if a constructor call is ambiguous, transpilation fails
-- ordinary methods remain non-overloadable in v0
+- members use `kConstantEnumValue`
+- the final member must end with `N`
+- every enum gets a generated `ToString`
 
-This allows ergonomic setup without expanding overloading into the rest of the language.
+The trailing `N` exists mainly because embedded code often loops over enum domains.
 
-### No Hidden Heap
+## maybe<T>
 
-RAII in `c+` does not imply dynamic allocation.
+There are no general templates.
 
-- local class instances are stack allocated unless explicitly placed elsewhere
-- ownership of external resources is user-defined
-- heap allocation, if supported at all, should be explicit through library APIs
+The only allowed template-like form is:
 
-## Control Flow
+```c
+maybe<u32>
+maybe<SerialConfig>
+```
 
-`c+` aims to stay close to C for control flow, with fewer footguns.
+This is the one sanctioned “templaty” feature.
 
-Allowed:
-
-- `if`
-- `else`
-- `switch`
-- `while`
-- `for`
-- `break`
-- `return`
-
-Forbidden:
-
-- `goto`
-
-Rationale:
-
-- easier RAII cleanup generation
-- clearer embedded control flow
-- fewer irreducible jumps in transpiled output
-
-### Readability and Simplicity Restrictions
-
-To keep parsing, lifetime analysis, and reviews simple, v0 adds these restrictions:
-
-- all control-flow bodies must use braces
-- single-line `if`, `else`, `for`, and `while` bodies are forbidden
-- assignment inside conditions is forbidden
-- declaration interleaving is forbidden within a scope
-- programmers who want a new RAII lifetime mid-function must create a new nested scope
-- implicit `switch` fallthrough is forbidden
-- every `switch` must include `default`
-- declaration lists such as `int a, b, c;` are forbidden
-- nested `if` depth greater than two levels is forbidden
-- `continue` is forbidden
-- `for` is restricted to a simple counted form with exactly one init expression, one condition expression, and one step expression
-- declarations are not allowed inside a `for` header
-- comma expressions are not allowed in a `for` header
-- `++` and `--` operators are forbidden
-- `for` step expressions must use ordinary assignment-style updates such as `i += 1` or `i = i + 1`
-
-These restrictions are intended to improve readability as well as simplify transpilation.
-
-### Type and Expression Policy
-
-`c+` should guide developers toward explicit, portable types and low-surprise expressions.
-
-Preferred builtin scalar types provided by the transpiler:
-
-- `u8`
-- `u16`
-- `u32`
-- `u64`
-- `i8`
-- `i16`
-- `i32`
-- `i64`
-- `f32`
-- `f64`
-
-Built-in special generic-like type:
-
-- `maybe<T>`
+The intent is similar to `std::optional`, but with much stricter language support.
 
 Rules:
 
-- use of fixed-width transpiler-provided types is preferred in `c+` source
-- the transpiler should warn on use of legacy C scalar types such as `char`, `short`, `int`, `long`, `float`, and `double`
-- character buffers should prefer `u8[]`-style storage over `char[]`
-- implicit narrowing conversions should be rejected
-- mixed signed/unsigned arithmetic or comparison should require an explicit cast
-- all local variables must be initialized before use
-- the ternary operator is forbidden
-- the comma operator is forbidden everywhere
-- duplicate writes to the same variable within a single expression should produce a warning at minimum
-- const-correctness should be enforced where possible
 - general templates are forbidden
-- `maybe<T>` is the only allowed template-like construct in v0
+- `maybe<T>` is allowed
+- `value()` should only be legal after a proven `has_value()` check
 
-### `maybe<T>`
+This is there because it is genuinely useful, especially in embedded code, without opening the template floodgates.
 
-`maybe<T>` is a built-in special form, not general template support.
+## C Interop
 
-Example:
+This part is essential.
 
-```c+
-maybe<UartConfig> maybe_config;
-if (maybe_config.has_value()) {
-    UartConfig config = maybe_config.value();
-}
-```
+Without C interop, `c+` is useless.
 
-Allowed operations:
+The language is meant to work on top of existing C code, not in isolation.
 
-- `has_value()`
-- `value()`
+That means:
 
-Rules:
+- raw C declarations are allowed
+- generated output is plain C
+- C calls from `.cp` bodies are expected to work
+- existing HAL and vendor APIs must remain callable
 
-- `maybe<T>` may hold either no value or one value of type `T`
-- calling `.value()` is only valid when the transpiler can prove that `.has_value()` was checked first on the same object along the active control-flow path
-- otherwise transpilation fails
-- this check is compile-time, not runtime
-
-This is intended to prevent common embedded bugs and make code intent more obvious.
-
-### Preprocessor and Macro Policy
-
-The C preprocessor is available for interoperability, but `c+` itself should avoid adding more macro-heavy behavior.
-
-Rules:
-
-- function-like macro definitions are forbidden in `.cp` and `.hp`
-- object-like macros may still appear where needed for compatibility
-- external C headers may continue to use macros normally
-
-### Recursion
-
-Recursion is forbidden in v0.
-
-The transpiler should reject direct and indirect recursion in user-authored `c+` functions and methods.
-
-## Error Handling
-
-The language does not use exceptions.
-
-Recommended style:
-
-- return status codes
-- return `bool`
-- return tagged result structs through libraries if needed
-- use RAII for cleanup, not for exception unwinding
-
-Open point:
-
-- whether the language should eventually include a lightweight `defer` in addition to RAII, or whether RAII alone is sufficient
-
-## Interoperability with C
-
-This is a core requirement.
-
-`c+` must work on top of existing C frameworks and generated code, including:
-
-- STM32Cube
-- vendor HAL and LL libraries
-- FreeRTOS
-- CMSIS
-- existing board support packages
-
-### Interop Expectations
-
-- raw C headers can be included
-- raw C functions can be declared and called
-- raw C structs, enums, and macros remain usable
-- generated C should compile cleanly with ordinary embedded toolchains
-
-### ABI Expectations
-
-The transpiler should not invent a custom ABI.
-
-- structs follow C layout
-- function calls use standard C calling conventions
-- symbol names are ordinary C symbols with namespace prefixes
-
-## Memory Model
-
-Initial intent:
-
-- values and pointers behave like C unless explicitly extended
-- no hidden copies beyond normal C semantics
-- no garbage collection
-- no reference counting in the language core
-
-Open points:
-
-- whether references should exist as syntax sugar over pointers
-- whether move-only semantics are needed for some RAII types
-- whether assertion/fail-fast behavior should be configurable by build mode or transpiler flags
-
-## Compilation Model
-
-The `c+` tool performs a source transformation pass.
-
-Example pipeline:
-
-```text
-foo.hp  --\
-          -> c+ transpiler -> foo.h
-foo.cp  --/                  foo.c
-
-foo.c + vendor C sources + generated C sources -> gcc/clang/arm-none-eabi-gcc
-```
-
-Recommended first-version responsibilities for the transpiler:
-
-- parse `.hp` and `.cp`
-- validate classes, interfaces, namespaces, and visibility
-- generate `.h` and `.c`
-- inject cleanup code for RAII
-- verify interface fulfillment
-- preserve line mapping where possible for debuggability
-
-## Suggested Minimal Syntax Surface for v0
-
-This is a proposed first milestone, not a final mandate.
-
-Include:
-
-- namespaces
-- classes
-- enums
-- `public` and `private`
-- methods
-- fields
-- interfaces with `implements`
-- `implementation` markers on interface methods
-- RAII via `construct` and `destroy`
-- nested member construction and destruction
-- static methods
-- class static variables with internal linkage
-- constructor declaration sugar such as `Foo x(args);`
-- overloaded `construct(...)` support only
-- built-in `maybe<T>` special form
-- ordinary C-like statements and expressions
-- direct C interop
-- mandatory braces on all control-flow bodies
-- no assignment in conditions
-- no declaration interleaving within a scope
-- no implicit `switch` fallthrough
-- `switch` must always include `default`
-- no `continue`
-- restricted counted `for` only
-- no `++` or `--`
-- maximum `if` nesting depth of two
-- warnings for legacy scalar types instead of transpiler-provided fixed-width types
-- no implicit narrowing conversions
-- no implicit signed/unsigned mixing
-- all locals initialized before use
-- no ternary operator
-- no comma operator anywhere
-- no function-like macro definitions in `c+` source
-- recursion forbidden
-- warn on duplicate writes to the same variable in one expression
-- enforced CamelCase for namespaces, classes, interfaces, enums, methods, and free functions
-- enforced `snake_case` for variables
-- enforced `_snake_case` for conceptually private fields
-- enum members in `kConstantEnumValue` style with mandatory trailing `...N`
-- implicit enum `ToString`
-
-Exclude:
-
-- inheritance
-- templates other than built-in `maybe<T>`
-- operator overloading
-- exceptions
-- RTTI
-- `goto`
-- implicit heap allocation
-- method overloading outside `construct`
-- default arguments
-- macros in the c+ language itself beyond passing through C preprocessor support
-- single-line control-flow bodies
-- declaration lists such as `int a, b;`
-- assignment expressions inside conditions
-- declaration interleaving inside a scope
-- `continue`
-- `switch` without `default`
-- declarations inside `for` headers
-- comma expressions in `for` headers
-- `++` and `--`
-- `if` nesting deeper than two levels
-- ternary operator
-- comma operator anywhere
-- function-like macro definitions in `c+` source
-- recursion
-- style-violating identifiers
-- unsafe `maybe<T>.value()` access without proven `has_value()`
-
-## Example
-
-```c+
-namespace board::spi {
-
-interface SpiBus {
-    fn transfer(byte* tx, byte* rx, usize len) -> int;
-}
-
-class CubeSpi implements SpiBus {
-private:
-    SPI_HandleTypeDef* _handle;
-
-public:
-    fn construct(SPI_HandleTypeDef* h);
-    implementation fn transfer(byte* tx, byte* rx, usize len) -> int;
-}
-
-}
-```
-
-Conceptual generated C:
+Practical example:
 
 ```c
-typedef struct board___spi___CubeSpi {
-    SPI_HandleTypeDef* _handle; // private
-} board___spi___CubeSpi;
-
-void board___spi___CubeSpi___construct(
-    board___spi___CubeSpi* self,
-    SPI_HandleTypeDef* h
-);
-
-int board___spi___CubeSpi___transfer(
-    board___spi___CubeSpi* self,
-    byte* tx,
-    byte* rx,
-    usize len
-);
+fn Boot() -> void {
+    HAL_UART_Transmit(handle, buffer, len, 100);
+}
 ```
 
-## Open Questions
+This needs to survive into generated C in a boring way.
+That is a first-class design goal, not a side feature.
 
-These need decisions before the language definition is stable enough for transpiler implementation.
+## Style and Simplicity Restrictions
 
-1. What surface syntax should object construction use in user code?
-   Resolved: constructor declaration sugar such as `Foo x(args);` is part of v0.
-2. Resolved: `implementation` methods must use the exact same name as the interface method.
-3. Resolved: conceptually private fields use leading-underscore naming and are emitted with trailing `// private` comments.
-4. Resolved: underscore-prefixed fields remain a documented convention only.
+`c+` is intentionally stricter than C or C++.
 
-## Working Position
+Examples of restrictions:
 
-A good first implementation target for MCU work would be:
-
-- namespaces as symbol prefixes
-- classes as `struct + functions`
-- methods with implicit `self`
-- all instance fields public in generated structs
-- leading-underscore fields treated as conceptually private and commented as such in generated code
-- private methods emitted as `static`
-- class static variables emitted as internal `static` storage in `.c`
-- interfaces checked at compile time with mandatory `implements`
-- interface methods explicitly marked `implementation`
-- interface implementation methods required to use exact interface method names
-- RAII via `construct` / `destroy` and structured cleanup insertion
-- infallible construction with assert/fail-fast handling for invalid conditions
-- constructor declaration sugar for local and member object setup
-- overloaded `construct(...)` support only
-- exactly one top-level namespace block per file
-- braces required on all control-flow bodies
-- no assignment in conditions
-- no declaration interleaving within a scope
-- no implicit `switch` fallthrough
-- `switch` must always include `default`
+- braces required on control-flow bodies
+- no assignment inside conditions
 - no `continue`
-- restricted counted `for` only
+- no `goto`
 - no `++` or `--`
-- maximum `if` nesting depth of two
-- warnings for legacy scalar types instead of builtin fixed-width types
-- no implicit narrowing conversions
-- no implicit signed/unsigned mixing without explicit cast
-- all locals initialized before use
 - no ternary operator
-- no comma operator anywhere
-- no function-like macro definitions in `c+` source
-- recursion forbidden
-- warn on duplicate writes to the same variable in one expression
-- enforce CamelCase for namespaces, classes, interfaces, enums, methods, and free functions
-- enforce `snake_case` for variables
-- enforce `_snake_case` for conceptually private fields
-- enforce enum members in `kConstantEnumValue` style with trailing `...N`
-- generate enum `ToString`
-- support built-in `maybe<T>` with compile-time checked `.has_value()` / `.value()` usage
-- boot-time oriented object lifetime assumptions for embedded targets
-- full C interoperability
+- no comma operator
+- no function-like macros in `c+` source
+- no recursion
+- exactly one top-level namespace block per file
 
-That keeps the model simple enough to build, while still providing real value over plain C for embedded projects.
+Why?
+
+Because the language is trying to optimize for:
+
+- readability
+- predictability
+- simpler transpilation
+- fewer bad habits in embedded code
+
+## What Is Still In Progress
+
+The language direction is clear, but the implementation is still catching up.
+
+Important incomplete areas:
+
+- full RAII cleanup lowering
+- deeper AST-based body analysis
+- stronger C interop modeling
+- richer object and method-call lowering
+
+So the right mental model is:
+
+- the language design is opinionated and fairly stable
+- the compiler is real
+- but the compiler is not done yet
+
+That is normal for the stage this project is in.

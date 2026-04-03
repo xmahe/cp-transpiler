@@ -47,9 +47,9 @@ typedef struct Board___DeviceController {
 
 typedef struct Board___DeviceRepository {
     u32 next_id;
-    DeviceController primary;
-    DeviceController secondary;
-    Logger logger;
+    Board___DeviceController primary;
+    Board___DeviceController secondary;
+    Board___Logger logger;
 } Board___DeviceRepository;
 
 i32 Board___SpiBus___Transfer(Board___SpiBus* self, u8* tx, u8* rx, u32 len);

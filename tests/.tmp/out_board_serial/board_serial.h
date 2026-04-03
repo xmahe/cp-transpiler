@@ -77,7 +77,7 @@ void ResetSerialStats();
 SerialSnapshot SnapshotSerialPort(u32 port_id);
 void TraceSerialEvent(u32 port_id, u8* message);
 SerialStats CollectSerialStats(u32 port_id);
-u8* FormatSerialConfig(SerialConfig config);
+u8* FormatSerialConfig(Board___SerialConfig config);
 void Board___BootSerial(u32 port_id, u32 baud_rate);
 void Board___ShutdownSerial();
 i32 Board___PollSerial(u8* buffer, u32 length);
@@ -92,6 +92,6 @@ void Board___ResetSerialStats();
 SerialSnapshot Board___SnapshotSerialPort(u32 port_id);
 void Board___TraceSerialEvent(u32 port_id, u8* message);
 SerialStats Board___CollectSerialStats(u32 port_id);
-u8* Board___FormatSerialConfig(SerialConfig config);
+u8* Board___FormatSerialConfig(Board___SerialConfig config);
 
 #endif

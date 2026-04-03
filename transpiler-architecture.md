@@ -1,483 +1,397 @@
-# c+ Transpiler Architecture
+# c+ Transpiler Architecture Guide
 
-## Goal
+This document explains how the transpiler is supposed to be built, in practical terms.
 
-Build a v0 transpiler that converts:
+If `language-definition.md` says what the language is, this document says how the compiler should think about it.
 
-- `.hp` -> `.h`
-- `.cp` -> `.c`
+## The Main Job
 
-while preserving compatibility with ordinary embedded C toolchains and existing frameworks such as STM32Cube.
+The transpiler takes:
 
-## High-Level Pipeline
+- `.hp`
+- `.cp`
+
+and produces:
+
+- `.h`
+- `.c`
+
+Example:
+
+- `thermo.hp`
+- `thermo.cp`
+
+become:
+
+- `thermo.h`
+- `thermo.c`
+
+The output should look like ordinary human-readable C, not like unreadable compiler sludge.
+
+## The Pipeline
 
 Recommended pipeline:
 
-1. Discover module pairs by basename
-2. Lex and parse `.hp` / `.cp`
-3. Build per-module ASTs
-4. Resolve namespaces and symbols
-5. Validate classes, interfaces, and constructor overloads
-6. Perform lifetime lowering for RAII
-7. Generate `.h`
-8. Generate `.c`
-9. Emit dependency and diagnostic information
+1. discover matching `.hp` / `.cp` module files
+2. lex each file into tokens
+3. parse each file into syntax trees
+4. merge the module pieces into one logical program model
+5. run semantic checks
+6. lower `c+` constructs into C-shaped constructs
+7. emit `.h`
+8. emit `.c`
+
+Think of it like:
+
+- understand the source first
+- then rewrite it
+- then print it
+
+Do not try to print C directly from raw source text.
 
 ## Module Model
 
-Matching basenames form one logical module:
+Matching basenames are one logical module.
+
+Example:
 
 - `uart.hp` + `uart.cp`
-- `spi.hp` + `spi.cp`
 
-Recommended assumptions:
+The driver layer should:
 
-- `.hp` owns exported declarations
-- `.cp` owns method and function definitions
-- `.cp`-only modules are allowed for internal code
+- collect both files
+- parse both
+- merge declarations and definitions
+- emit one pair of outputs
 
-## Core Data Structures
+This is very important, because many language features depend on it:
 
-The transpiler should maintain at least these internal models:
+- class declarations in `.hp`
+- out-of-class method definitions in `.cp`
+- free function declarations in `.hp`
+- free function bodies in `.cp`
+
+Without module pairing, the language becomes awkward very quickly.
+
+## What Each Stage Should Care About
+
+### 1. Lexer
+
+Input:
+
+- raw source text
+
+Output:
+
+- tokens
+
+It should answer:
+
+- where are the identifiers?
+- where are the keywords?
+- where are the punctuation marks?
+
+It should not answer:
+
+- does this class exist?
+- is this call legal?
+
+### 2. Parser
+
+Input:
+
+- tokens
+
+Output:
+
+- AST
+
+The parser should understand shapes like:
+
+- namespace block
+- class declaration
+- interface declaration
+- enum
+- function declaration
+- out-of-class method definition
+- statement blocks
+- expressions
+
+The parser should answer:
+
+- what did the source say?
+
+not:
+
+- was it meaningful?
+
+### 3. Semantic Analysis
+
+Input:
+
+- AST / model
+
+Output:
+
+- validated model + diagnostics
+
+Examples of semantic questions:
+
+- does this interface implementation match?
+- does this method definition match a declared class method?
+- does this enum end in `...N`?
+- is this name style allowed?
+- is `maybe<T>.value()` being used unsafely?
+
+This stage is the “does this make sense?” stage.
+
+### 4. Lowering
+
+Input:
+
+- validated `c+` program
+
+Output:
+
+- a simpler C-like IR
+
+This is where the language really becomes C-shaped.
+
+Examples:
+
+- `namespace Board` becomes `Board___`
+- methods become plain C functions with `self`
+- `reading` becomes `self->reading`
+- `Reset()` becomes `Board___Thermometer___Reset(self)`
+- `logger.Flush()` becomes `Board___Logger___Flush(&self->logger)`
+
+This is the most important translation stage.
+
+### 5. Emission
+
+Input:
+
+- lowered C-like IR
+
+Output:
+
+- actual `.h` and `.c` text
+
+This stage should be boring.
+
+If the emitter is still trying to understand lots of `c+` semantics, lowering is too weak.
+
+## Why Lowering Exists
+
+Without lowering, the emitter would have to know everything about:
+
+- classes
+- interfaces
+- namespaces
+- `maybe<T>`
+- method calls
+- RAII cleanup
+
+That is a bad design.
+
+Lowering exists so the emitter mostly sees plain C-shaped pieces like:
+
+- struct
+- enum
+- function
+- global variable
+
+## Practical Example
+
+Input:
+
+```c
+namespace Board {
+
+class Logger {
+public:
+    fn Flush() -> void;
+}
+
+class Thermometer {
+public:
+    Logger logger;
+    u32 reading;
+    fn Reset() -> void;
+    fn Apply() -> void;
+}
+
+fn Thermometer::Reset() -> void {
+    reading = 0;
+}
+
+fn Thermometer::Apply() -> void {
+    logger.Flush();
+    Reset();
+}
+
+}
+```
+
+Lowered idea:
+
+```c
+typedef struct Board___Logger {
+} Board___Logger;
+
+typedef struct Board___Thermometer {
+    Board___Logger logger;
+    u32 reading;
+} Board___Thermometer;
+
+void Board___Logger___Flush(Board___Logger* self);
+void Board___Thermometer___Reset(Board___Thermometer* self);
+void Board___Thermometer___Apply(Board___Thermometer* self);
+
+void Board___Thermometer___Reset(Board___Thermometer* self) {
+    self->reading = 0;
+}
+
+void Board___Thermometer___Apply(Board___Thermometer* self) {
+    Board___Logger___Flush(&self->logger);
+    Board___Thermometer___Reset(self);
+}
+```
+
+That is what the architecture should help us reach cleanly.
+
+## Important Internal Data
+
+Useful things for the compiler to track:
 
 - token stream
 - AST
 - symbol table
-- namespace context
-- type table
-- interface contract table
-- class metadata table
-- module graph
+- namespace stack
+- class metadata
+- interface metadata
+- type information
+- lowered IR
 
-Useful class metadata:
+Useful class metadata includes:
 
 - class name
-- namespace
-- fields
-- static variables
-- public methods
-- private methods
-- constructors
-- destructor presence
-- implemented interfaces
+- namespace path
+- field list
+- static field list
+- method list
+- constructor list
+- whether `destroy` exists
 
-Useful field metadata:
-
-- name
-- type
-- underscore-private marker
-- declaration order
-- whether the field type is another class
-
-## AST Shape
-
-Recommended top-level nodes:
-
-- `Module`
-- `NamespaceDecl`
-- `ClassDecl`
-- `InterfaceDecl`
-- `FunctionDecl`
-- `RawCDecl`
-
-Recommended class subnodes:
-
-- `FieldDecl`
-- `StaticFieldDecl`
-- `MethodDecl`
-- `ConstructorDecl`
-- `DestructorDecl`
-
-Recommended statement nodes:
-
-- `BlockStmt`
-- `DeclStmt`
-- `ExprStmt`
-- `IfStmt`
-- `ForStmt`
-- `WhileStmt`
-- `SwitchStmt`
-- `BreakStmt`
-- `ContinueStmt`
-- `ReturnStmt`
-
-## Parsing Strategy
-
-Use a normal lexer and parser rather than regex-based rewriting.
-
-Recommended parser split:
-
-1. Parse file-level items
-2. Parse class/interface bodies with dedicated rules
-3. Reuse C-like expression parsing for method bodies and function bodies
-
-Suggested parsing technique:
-
-- recursive descent for declarations/statements
-- Pratt parser or precedence parser for expressions
-
-This is enough for a weekend prototype if the expression grammar stays close to C.
+That metadata becomes very useful once method-body rewriting and RAII lowering get more advanced.
 
 ## Name Mangling
 
-Namespaces and methods should lower to deterministic C symbol names.
-
-Recommended scheme:
-
-- namespace separator: `___`
-- method separator: `___`
+Namespaces and methods lower to predictable C names.
 
 Examples:
 
-- `board::spi::CubeSpi` -> `board___spi___CubeSpi`
-- `board::spi::CubeSpi.transfer` -> `board___spi___CubeSpi___transfer`
+- `Board::Thermometer` -> `Board___Thermometer`
+- `Board::Thermometer.Reset` -> `Board___Thermometer___Reset`
 
-Static methods use the same naming scheme, just without `self`.
+This should be deterministic and boring.
+
+Boring is good here.
 
 ## Header Generation
 
-For each class, emit:
+The generated `.h` should contain:
 
-- `typedef struct ...`
-- visible instance fields
-- trailing `// private` comments on underscore-prefixed fields
-- declarations for public methods
-- declarations for static methods
+- visible structs
+- visible enums
+- public function declarations
+- public method declarations
 
-Do not emit:
+It should not expose:
 
-- private method declarations
+- private methods
 - class static variables
 
-For each interface, emit either:
+Example:
 
-- nothing in generated C headers for v0, or
-- comments/documentation declarations only
-
-I recommend comments only in v0, since interfaces are compile-time-only and have no runtime ABI.
+- a private method becomes `static` in the generated `.c`
+- not a public declaration in the `.h`
 
 ## Source Generation
 
-For each class, emit:
+The generated `.c` should contain:
 
-- definitions for public methods
-- `static` definitions for private methods
-- file-scope `static` storage for class static variables
+- private method bodies
+- public method bodies
+- free function bodies
+- file-scope static variables
+- enum `ToString` helpers
 
-For each free function, emit a normal C function definition.
+It should include the matching generated header first.
 
-Include the generated matching header first.
+## RAII Strategy
 
-## Constructor Lowering
+This is still one of the major unfinished areas, but the architecture should support it.
 
-Construction sugar:
+The intended model:
 
-```c+
-Uart uart(1, 115200);
-```
+- track local class-type objects by lexical scope
+- inject `destroy` calls in reverse order
+- rewrite `return` into cleanup + final return
 
-lowers to:
+That may use compiler-generated `goto` in the emitted C.
 
-```c
-board___Uart uart;
-board___Uart___construct(&uart, 1, 115200);
-```
+That is acceptable, because the source language still forbids user-written `goto`.
 
-Rules:
+## C Interop
 
-- zero-arg declarations lower to zero-arg `construct()` if present
-- constructor overload resolution happens during semantic analysis
-- no constructor may fail in v0
+The architecture must leave room for plain C interop.
 
-## Destructor Lowering
+This is not optional.
 
-Local objects of class type require scope-exit cleanup.
+Examples that must be possible:
 
-Example:
+- calling HAL functions from method bodies
+- using vendor structs and handles in fields
+- including existing C headers
+- declaring raw C things in `c+` files when needed
 
-```c+
-fn boot() -> void {
-    A a;
-    B b;
-    return;
-}
-```
+So the architecture should stay compatible with:
 
-lowers conceptually to:
+- raw C declarations
+- passthrough C calls
+- readable generated C
 
-```c
-void boot(void) {
-    A a;
-    A___construct(&a);
-    B b;
-    B___construct(&b);
-    B___destroy(&b);
-    A___destroy(&a);
-    return;
-}
-```
+## What Is Already Working
 
-In practice, returns need rewriting so cleanup runs before the emitted `return`.
+The current compiler already has several real pieces in place:
 
-## RAII Lowering Strategy
+- paired module handling
+- interface checking
+- `maybe<T>` support
+- method lowering
+- out-of-class method definitions
+- basic body rewriting for:
+  - `self->field`
+  - same-class calls
+  - some object method calls
 
-Recommended implementation:
+That means this is no longer just a paper design.
 
-1. Walk each function body
-2. Track class-type locals per lexical scope
-3. On scope exit, inject reverse-order destroy calls
-4. On `return`, rewrite to:
-   - assign return value to a temp if needed
-   - emit cleanup for active scopes
-   - emit final return
+## What Still Needs Work
 
-Important simplification for v0:
+The biggest remaining compiler tasks are:
 
-- do not add special cleanup rewriting for `break` and `continue`
-- only ordinary scope-end and `return` need explicit handling
+- fuller AST-based body analysis
+- RAII cleanup lowering
+- richer object/method call lowering
+- stronger C interop modeling
+- less text-driven semantic checking
 
-### Generated `goto` for Cleanup
+So the architecture should keep pointing toward:
 
-User-authored `goto` is forbidden in `c+`, but generated C may use `goto` for structured cleanup.
+- simpler driver
+- smarter lowering
+- boring emitter
 
-This is the recommended lowering strategy for early returns because it avoids repeated destroy sequences and keeps generated C readable.
-
-Example pattern:
-
-```c
-int fn(void) {
-    int __ret;
-    A a;
-    A___construct(&a);
-
-    if (cond1) {
-        __ret = -1;
-        goto __cleanup_a;
-    }
-
-    B b;
-    B___construct(&b);
-
-    if (cond2) {
-        __ret = -2;
-        goto __cleanup_b_a;
-    }
-
-    __ret = 0;
-    goto __cleanup_b_a;
-
-__cleanup_b_a:
-    B___destroy(&b);
-__cleanup_a:
-    A___destroy(&a);
-    return __ret;
-}
-```
-
-Key rules:
-
-- generate as many cleanup labels as needed for distinct live-object sets
-- place cleanup labels at the end of the function
-- chain labels so later cleanup states fall through into earlier ones
-- never jump to a label that destroys an object that has not yet been constructed
-- labels and temporaries should use reserved compiler-generated names
-
-## Member Subobject Lowering
-
-If a class contains class-typed fields, its generated `construct` and `destroy` need augmentation.
-
-Example:
-
-```c+
-class Device {
-public:
-    Spi spi;
-    Gpio cs;
-    fn construct();
-    fn destroy();
-}
-```
-
-Generated `construct` should:
-
-1. call `Spi___construct(&self->spi, ...)` if required by definition
-2. call `Gpio___construct(&self->cs, ...)`
-3. execute user-authored constructor body
-
-Generated `destroy` should:
-
-1. execute user-authored destructor body
-2. destroy `cs`
-3. destroy `spi`
-
-This is one of the trickiest parts of the transpiler because constructor arguments for member objects need a language rule. For v0, the simplest assumption is:
-
-- member subobjects are default-constructed automatically if they have zero-arg `construct`
-- otherwise the enclosing `construct` must initialize them explicitly through ordinary method calls or assignment conventions added later
-
-That detail should be nailed down before implementation.
-
-## Interface Validation
-
-For each `class ... implements ...`:
-
-1. collect required interface methods
-2. collect class methods marked `implementation`
-3. verify exact name match
-4. verify compatible signatures
-5. verify all requirements are satisfied
-6. verify no extra unmatched `implementation` methods exist
-
-No runtime code is emitted for interfaces in v0.
-
-## Access and Privacy Handling
-
-Privacy is mostly a documentation and codegen concern in v0:
-
-- private methods become `static` in generated `.c`
-- underscore-prefixed fields are emitted normally
-- underscore-prefixed fields receive trailing `// private` comments in generated `.h`
-
-No hard field-access restriction needs to be enforced in semantic analysis.
-
-## Naming and Enum Validation
-
-The transpiler should validate enforced naming conventions.
-
-Required checks:
-
-- namespaces are `CamelCase`
-- classes are `CamelCase`
-- interfaces are `CamelCase`
-- enums are `CamelCase`
-- methods are `CamelCase`
-- free functions are `CamelCase`
-- variables are `snake_case`
-- conceptually private fields are `_snake_case`
-- enum members use `kConstantEnumValue` style
-- every enum ends with a trailing `...N` member
-
-Enums also require implicit `ToString` generation.
-
-## `maybe<T>` Validation
-
-`maybe<T>` is the only built-in template-like construct in v0.
-
-The transpiler should treat it as a special semantic form rather than general template support.
-
-Required checks:
-
-- only `maybe<T>` is allowed; arbitrary templates are rejected
-- `.value()` calls must be dominated by a provable `.has_value()` check on the same object
-- if that proof is not available on the active control-flow path, transpilation fails
-
-## Interop Handling
-
-The transpiler must preserve interoperability with C:
-
-- pass through preprocessor directives
-- allow raw C declarations
-- preserve external includes
-- avoid non-portable generated constructs
-
-Generated C should be boring.
-
-That is a design goal, not just an implementation side effect.
-
-## Diagnostics
-
-The transpiler should report:
-
-- parse errors with file/line/column
-- unknown types
-- invalid `implementation` markers
-- constructor ambiguity
-- missing interface methods
-- duplicate members
-- forbidden overloads
-- forbidden `goto`
-- assignment inside conditions
-- declaration interleaving inside a scope
-- missing braces on control-flow bodies
-- implicit `switch` fallthrough
-- `if` nesting deeper than two levels
-- use of discouraged legacy scalar types
-- implicit narrowing conversions
-- mixed signed/unsigned arithmetic or comparison without explicit cast
-- uninitialized local variables
-- ternary operator
-- comma operator
-- function-like macro definitions in `c+` source
-- direct or indirect recursion
-- duplicate writes to the same variable in one expression
-- naming-style violations
-- missing enum `...N` terminator member
-- invalid enum member naming
-- const-correctness violations where analyzable
-- unsupported template usage
-- unsafe `maybe<T>.value()` access without proven `has_value()`
-
-Source mapping quality matters because debugging happens in generated C and on target firmware.
-
-## Suggested Implementation Order
-
-Weekend-project order:
-
-1. File discovery and module pairing
-2. Lexer
-3. Parser for namespaces, classes, interfaces, and method signatures
-4. Basic `.hp` -> `.h` generation
-5. Basic `.cp` -> `.c` generation without RAII rewriting
-6. Semantic checks for interfaces and constructor overloads
-7. Constructor sugar lowering
-8. RAII return-path rewriting
-9. Member subobject lifetime insertion
-
-This sequence gets visible progress quickly while deferring the hardest lowering pass until the core model is stable.
-
-## Recommended v0 Constraints
-
-To keep the prototype realistic, I would enforce these constraints early:
-
-- no templates
-- no general method overloading
-- no hard field privacy
-- no runtime interfaces
-- no dynamic allocation syntax
-- no exception model
-- no `goto` in source
-- exactly one top-level namespace block per file
-- braces required on all control-flow bodies
-- no assignment expressions inside conditions
-- no declaration interleaving within a scope
-- no declaration lists
-- no implicit `switch` fallthrough
-- every `switch` must include `default`
-- no `continue`
-- restricted counted `for` only
-- no declarations inside `for` headers
-- no comma expressions in `for` headers
-- no `++` or `--`
-- maximum `if` nesting depth of two
-- warn on legacy scalar types when fixed-width builtin types should be used
-- no implicit narrowing conversions
-- no implicit signed/unsigned mixing without explicit cast
-- all locals initialized before use
-- no ternary operator
-- no comma operator anywhere
-- no function-like macro definitions in `c+` source
-- no recursion
-- warn on duplicate writes to the same variable in one expression
-- enforce CamelCase for namespaces, classes, interfaces, enums, methods, and free functions
-- enforce `snake_case` for variables
-- enforce `_snake_case` for conceptually private fields
-- enforce enum members in `kConstantEnumValue` style with trailing `...N`
-- generate enum `ToString`
-- support built-in `maybe<T>` only, not general templates
-
-## Open Implementation Questions
-
-1. How should member subobjects with non-default constructors be initialized?
-2. Should interfaces emit any generated C artifacts, or only drive validation?
-3. Should raw C declarations be parsed loosely and preserved, or represented as opaque AST nodes?
-4. Do you want line directives such as `#line` in generated output for debugger friendliness?
+That is the healthiest direction for this project.

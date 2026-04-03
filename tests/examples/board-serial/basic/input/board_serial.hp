@@ -1,0 +1,99 @@
+namespace Board {
+
+enum UartState {
+    kUartStateUninitialized,
+    kUartStateReady,
+    kUartStateBusy,
+    kUartStateError,
+    kUartStateN,
+}
+
+enum DriverMode {
+    kDriverModePolling,
+    kDriverModeInterrupt,
+    kDriverModeDma,
+    kDriverModeN,
+}
+
+interface SerialDriver {
+    fn Start() -> void;
+    fn Stop() -> void;
+    fn Send(u8* data, u32 length) -> i32;
+    fn Flush() -> void;
+}
+
+class SerialPort implements SerialDriver {
+private:
+    static u32 _instance_count;
+    u32 _port_id;
+    u32 _baud_rate;
+    UartState _state;
+    DriverMode _mode;
+
+public:
+    maybe<u32> next_port_id;
+    u32 tx_count;
+    u32 rx_count;
+    u32 error_count;
+    u32 last_activity_tick;
+
+    fn Construct(u32 port_id, u32 baud_rate) -> void;
+    fn Destroy() -> void;
+    implementation fn Start() -> void;
+    implementation fn Stop() -> void;
+    implementation fn Send(u8* data, u32 length) -> i32;
+    implementation fn Flush() -> void;
+    fn Reconfigure(u32 baud_rate) -> void;
+    fn ResetCounters() -> void;
+    fn IsReady() -> i32;
+    fn Mode() -> DriverMode;
+    static fn InstanceCount() -> u32;
+}
+
+class SerialConfig {
+public:
+    u32 port_id;
+    u32 baud_rate;
+    DriverMode mode;
+    maybe<u32> retry_limit;
+    u8 trace_enabled;
+    fn Construct(u32 port_id, u32 baud_rate) -> void;
+    fn Reset() -> void;
+}
+
+struct SerialStats {
+    u32 tx_bytes;
+    u32 rx_bytes;
+    u32 framing_errors;
+    u32 parity_errors;
+    u32 overrun_errors;
+    u32 dropped_bytes;
+    u32 retried_frames;
+}
+
+struct SerialSnapshot {
+    u32 port_id;
+    UartState state;
+    DriverMode mode;
+    u32 tx_bytes;
+    u32 rx_bytes;
+    u32 error_count;
+}
+
+fn BootSerial(u32 port_id, u32 baud_rate) -> void;
+fn ShutdownSerial() -> void;
+fn PollSerial(u8* buffer, u32 length) -> i32;
+fn SerialStateName(UartState state) -> u8*;
+fn DriverModeName(DriverMode mode) -> u8*;
+fn SelectMode(u32 request) -> DriverMode;
+fn NormalizeBaudRate(u32 baud_rate) -> u32;
+fn IsPollingMode(DriverMode mode) -> i32;
+fn AcquireSerialPort(u32 port_id) -> maybe<u32>;
+fn ReportSerialStats(SerialStats stats) -> void;
+fn ResetSerialStats() -> void;
+fn SnapshotSerialPort(u32 port_id) -> SerialSnapshot;
+fn TraceSerialEvent(u32 port_id, u8* message) -> void;
+fn CollectSerialStats(u32 port_id) -> SerialStats;
+fn FormatSerialConfig(SerialConfig config) -> u8*;
+
+}

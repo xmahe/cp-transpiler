@@ -1,0 +1,9 @@
+namespace Board {
+
+class Holder {
+public:
+    maybe<u32> maybe_value;
+    fn construct() -> void;
+}
+
+}

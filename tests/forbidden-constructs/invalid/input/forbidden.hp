@@ -1,0 +1,8 @@
+namespace Board {
+
+class Forbidden {
+public:
+    u32 value;
+}
+
+}

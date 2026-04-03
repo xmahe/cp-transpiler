@@ -1,0 +1,15 @@
+namespace Board {
+
+class Logger {
+public:
+    fn Flush() -> void;
+}
+
+class Thermometer {
+public:
+    Logger logger;
+    fn Apply() -> void;
+    fn UseLocalLogger() -> void;
+}
+
+}

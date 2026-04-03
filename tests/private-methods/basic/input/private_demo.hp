@@ -1,0 +1,13 @@
+namespace Board {
+
+class Gpio {
+public:
+    u32 value;
+    fn construct() -> void;
+    fn Toggle() -> void;
+
+private:
+    fn Helper() -> void;
+}
+
+}

@@ -1,0 +1,100 @@
+namespace Board {
+
+enum DeviceMode {
+    kDeviceModeOff,
+    kDeviceModeStandby,
+    kDeviceModeActive,
+    kDeviceModeFault,
+    kDeviceModeSleep,
+    kDeviceModeN,
+}
+
+enum DiagnosticState {
+    kDiagnosticStateIdle,
+    kDiagnosticStateCollecting,
+    kDiagnosticStateReporting,
+    kDiagnosticStateFault,
+    kDiagnosticStateN,
+}
+
+interface SpiBus {
+    fn Transfer(u8* tx, u8* rx, u32 len) -> i32;
+    fn Lock() -> i32;
+    fn Unlock() -> i32;
+    fn Flush() -> i32;
+}
+
+interface SensorDriver {
+    fn Read(u8* buffer, u32 len) -> i32;
+    fn Calibrate() -> i32;
+    fn Reset() -> i32;
+}
+
+interface PowerControl {
+    fn Enable() -> i32;
+    fn Disable() -> i32;
+    fn IsEnabled() -> i32;
+}
+
+class Logger {
+public:
+    static u32 instance_count;
+    fn construct() -> void;
+    fn destroy() -> void;
+    fn WriteLine(u8* data, u32 len) -> i32;
+    fn Flush() -> i32;
+    fn SetPrefix(u8* prefix) -> void;
+}
+
+class DeviceController implements SpiBus, SensorDriver, PowerControl {
+private:
+    static u32 instance_count;
+    fn CheckReady() -> i32;
+    fn ValidateWindow(u32 start, u32 len) -> i32;
+
+public:
+    u32 device_id;
+    maybe<u32> maybe_last_error;
+    u32 sample_rate_hz;
+    u8* _scratch;
+    DeviceMode current_mode;
+    DiagnosticState current_state;
+    u32 transfer_count;
+    u32 read_count;
+    u32 reset_count;
+
+    fn construct(u32 device_id, u32 sample_rate_hz) -> void;
+    fn destroy() -> void;
+
+    implementation fn Transfer(u8* tx, u8* rx, u32 len) -> i32;
+    implementation fn Lock() -> i32;
+    implementation fn Unlock() -> i32;
+    implementation fn Flush() -> i32;
+    implementation fn Read(u8* buffer, u32 len) -> i32;
+    implementation fn Calibrate() -> i32;
+    implementation fn Reset() -> i32;
+    implementation fn Enable() -> i32;
+    implementation fn Disable() -> i32;
+    implementation fn IsEnabled() -> i32;
+
+    fn SampleRate() -> u32;
+    fn SetMode(DeviceMode mode) -> void;
+    fn SetState(DiagnosticState state) -> void;
+    fn IsReady() -> i32;
+}
+
+class DeviceRepository {
+public:
+    u32 next_id;
+    DeviceController primary;
+    DeviceController secondary;
+    Logger logger;
+    fn construct(u32 sample_rate_hz) -> void;
+    fn destroy() -> void;
+    fn InitializeDefaults() -> i32;
+    fn Reset() -> i32;
+    fn SelectActive(u32 id) -> i32;
+    fn PrimeLogger() -> i32;
+}
+
+}

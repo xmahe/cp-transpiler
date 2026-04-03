@@ -1,0 +1,5 @@
+namespace Board {
+
+fn Bad(u32 value) -> u32;
+
+}

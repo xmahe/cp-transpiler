@@ -1,0 +1,12 @@
+namespace Board {
+
+interface SpiBus {
+    fn Transfer(u8* tx, u8* rx, u32 len) -> i32;
+}
+
+class MockSpi implements SpiBus {
+public:
+    implementation fn Transfer(u8* tx, u8* rx, u32 len) -> i32;
+}
+
+}

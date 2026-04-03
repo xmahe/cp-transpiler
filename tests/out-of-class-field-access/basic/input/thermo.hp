@@ -1,0 +1,13 @@
+namespace Board {
+
+class Thermometer {
+public:
+    u32 reading;
+    fn construct(u32 initial_reading) -> void;
+    fn Calibrate(u32 offset) -> void;
+    fn Read() -> u32;
+}
+
+fn ResetThermometer(u32 value) -> void;
+
+}

@@ -1,0 +1,10 @@
+namespace Board {
+
+class Timer {
+public:
+    static u32 instance_count;
+    u32 tick_count;
+    fn construct() -> void;
+}
+
+}

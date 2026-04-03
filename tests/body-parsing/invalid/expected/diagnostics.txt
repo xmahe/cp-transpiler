@@ -1,0 +1,1 @@
+error: /Users/magnus/c+/tests/body-parsing/invalid/input/body_bad.cp:3:1: goto is forbidden

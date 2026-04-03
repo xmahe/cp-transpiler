@@ -44,6 +44,7 @@ add_transpile_fail_test(namespace_top_level_invalid namespace-top-level/invalid/
 add_transpile_fail_test(forbidden_constructs_invalid forbidden-constructs/invalid/input forbidden-constructs/invalid/expected)
 add_transpile_pass_test(body_parsing_basic body-parsing/basic/input body-parsing/basic/expected)
 add_transpile_fail_test(body_parsing_invalid body-parsing/invalid/input body-parsing/invalid/expected)
+add_transpile_fail_test(missing_definitions_invalid missing-definitions/invalid/input missing-definitions/invalid/expected)
 add_transpile_pass_test(example_transpile_basic example-transpile/basic/input example-transpile/basic/expected)
 add_transpile_pass_test(board_serial_example examples/board-serial/basic/input examples/board-serial/basic/expected)
 add_transpile_pass_test(export_c_basic export-c/basic/input export-c/basic/expected)

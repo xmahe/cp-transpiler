@@ -108,6 +108,7 @@ Still left before v1.0:
 - [src/README.md](/Users/magnus/c+/src/README.md): beginner-friendly walkthrough of the compiler source tree
 - [tests/README.md](/Users/magnus/c+/tests/README.md): how the test harness works
 - [example/README.md](/Users/magnus/c+/example/README.md): how to wire a `c+` module into a real CMake build
+- [nvim/README.md](/Users/magnus/c+/nvim/README.md): Neovim syntax highlighting for `.cp` and `.hp`
 - [tests/examples/README.md](/Users/magnus/c+/tests/examples/README.md): overview of larger example inputs
 - [tests/examples/board-serial/basic/README.md](/Users/magnus/c+/tests/examples/board-serial/basic/README.md): notes for the board-serial example
 

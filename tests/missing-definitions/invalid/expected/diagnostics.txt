@@ -1,0 +1,1 @@
+error: /Users/magnus/c+/tests/missing-definitions/invalid/input/missing.hp:9:1: missing function definition: Boot

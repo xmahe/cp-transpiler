@@ -1,0 +1,11 @@
+namespace Board {
+
+class Uart {
+public:
+    fn Construct() -> void;
+    fn Toggle() -> void;
+}
+
+fn Boot() -> void;
+
+}

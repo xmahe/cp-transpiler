@@ -215,6 +215,7 @@ void Analyzer::validate_program(const model::Program& program, const AnalysisOpt
         validate_declaration(decl, options, result);
     }
     validate_bindings(program, result);
+    validate_missing_free_function_definitions(program, result);
     if (options.enforce_maybe_flow) {
         validate_maybe_flow(program, options, result);
     }
@@ -619,6 +620,31 @@ void Analyzer::validate_maybe_flow(const model::Program& program, const Analysis
             if (has_pos == std::string::npos || has_pos > value_pos) {
                 add_diagnostic(result, model::Severity::Error, fn->range, "unsafe maybe<T>.value() access without proven has_value(): " + maybe_name);
             }
+        }
+    }
+}
+
+void Analyzer::validate_missing_free_function_definitions(const model::Program& program, AnalysisResult& result) const {
+    for (const auto& decl : program.declarations) {
+        const auto* fn = std::get_if<model::FunctionDecl>(&decl);
+        if (fn == nullptr || !fn->owner_type_path.empty() || !fn->body_source.empty()) {
+            continue;
+        }
+
+        bool found_definition = false;
+        for (const auto& candidate_decl : program.declarations) {
+            const auto* candidate = std::get_if<model::FunctionDecl>(&candidate_decl);
+            if (candidate == nullptr || !candidate->owner_type_path.empty() || candidate->body_source.empty()) {
+                continue;
+            }
+            if (candidate->namespace_path == fn->namespace_path && signatures_match(candidate->signature, fn->signature)) {
+                found_definition = true;
+                break;
+            }
+        }
+
+        if (!found_definition) {
+            add_diagnostic(result, model::Severity::Error, fn->range, "missing function definition: " + fn->signature.name);
         }
     }
 }

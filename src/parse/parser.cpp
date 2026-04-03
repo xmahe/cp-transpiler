@@ -697,6 +697,8 @@ std::vector<ast::Declaration> Parser::parse_block_declarations() {
             decls.push_back(parse_namespace());
         } else if (check(lex::TokenKind::KeywordClass)) {
             decls.push_back(parse_class());
+        } else if (check(lex::TokenKind::KeywordStruct)) {
+            decls.push_back(parse_struct());
         } else if (check(lex::TokenKind::KeywordInterface)) {
             decls.push_back(parse_interface());
         } else if (check(lex::TokenKind::KeywordEnum)) {
@@ -856,6 +858,48 @@ ast::Declaration Parser::parse_class() {
     return decl;
 }
 
+ast::Declaration Parser::parse_struct() {
+    const std::size_t start = current_index_;
+    ++current_index_;
+    ast::QualifiedName name = parse_qualified_name();
+    if (!(check(lex::TokenKind::Punctuation) && current().lexeme == "{")) {
+        diagnostics_.error("expected '{' after struct name", current().span, source_path_.string());
+        if (!eof()) {
+            ++current_index_;
+        }
+        return ast::RawCDecl{"", tokens_[start].span};
+    }
+    ++current_index_;
+    ast::ClassDecl decl;
+    decl.name = name;
+    decl.is_struct = true;
+    while (!eof() && !(check(lex::TokenKind::Punctuation) && current().lexeme == "}")) {
+        if (check(lex::TokenKind::KeywordPublic) || check(lex::TokenKind::KeywordPrivate)) {
+            diagnostics_.error("struct does not support visibility sections", current().span, source_path_.string());
+            ++current_index_;
+            if (check(lex::TokenKind::Punctuation) && current().lexeme == ":") {
+                ++current_index_;
+            }
+            continue;
+        }
+        if (check(lex::TokenKind::KeywordFn) || check(lex::TokenKind::KeywordImplementation) || check(lex::TokenKind::KeywordStatic) || check(lex::TokenKind::KeywordInject)) {
+            diagnostics_.error("struct may only contain fields", current().span, source_path_.string());
+            while (!eof() && !(check(lex::TokenKind::Punctuation) && (current().lexeme == ";" || current().lexeme == "}"))) {
+                ++current_index_;
+            }
+            if (check(lex::TokenKind::Punctuation) && current().lexeme == ";") {
+                ++current_index_;
+            }
+            continue;
+        }
+        decl.fields.push_back(parse_field(false, false));
+    }
+    const std::size_t close_index = current_index_;
+    consume(lex::TokenKind::Punctuation, "expected '}' after struct body");
+    decl.span = span_from(start, close_index);
+    return decl;
+}
+
 ast::Declaration Parser::parse_interface() {
     const std::size_t start = current_index_;
     ++current_index_;
@@ -964,6 +1008,10 @@ ast::Module Parser::parse_module() {
         }
         if (check(lex::TokenKind::KeywordClass)) {
             module.declarations.push_back(parse_class());
+            continue;
+        }
+        if (check(lex::TokenKind::KeywordStruct)) {
+            module.declarations.push_back(parse_struct());
             continue;
         }
         if (check(lex::TokenKind::KeywordInterface)) {

@@ -10,22 +10,22 @@ typedef struct {
 } __cplus_maybe_u32;
 
 typedef enum {
-    kDeviceModeOff,
-    kDeviceModeStandby,
-    kDeviceModeActive,
-    kDeviceModeFault,
-    kDeviceModeSleep,
-    kDeviceModeN,
+    Board___DeviceMode___kDeviceModeOff,
+    Board___DeviceMode___kDeviceModeStandby,
+    Board___DeviceMode___kDeviceModeActive,
+    Board___DeviceMode___kDeviceModeFault,
+    Board___DeviceMode___kDeviceModeSleep,
+    Board___DeviceMode___kDeviceModeN,
 } Board___DeviceMode;
 
 const char* Board___DeviceMode___ToString(Board___DeviceMode value);
 
 typedef enum {
-    kDiagnosticStateIdle,
-    kDiagnosticStateCollecting,
-    kDiagnosticStateReporting,
-    kDiagnosticStateFault,
-    kDiagnosticStateN,
+    Board___DiagnosticState___kDiagnosticStateIdle,
+    Board___DiagnosticState___kDiagnosticStateCollecting,
+    Board___DiagnosticState___kDiagnosticStateReporting,
+    Board___DiagnosticState___kDiagnosticStateFault,
+    Board___DiagnosticState___kDiagnosticStateN,
 } Board___DiagnosticState;
 
 const char* Board___DiagnosticState___ToString(Board___DiagnosticState value);

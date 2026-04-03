@@ -10,9 +10,10 @@ The clean build model is:
 
 1. assume `cplus` is already installed as a normal host tool
 2. let CMake find it on `PATH`
-3. run it from CMake with a custom command
-4. write generated `.h` and `.c` files into the build directory
-5. compile the generated `.c` files with the normal C compiler
+3. discover all `example/src/*.hp` and `example/src/*.cp` files automatically
+4. run `cplus` from CMake with a custom command
+5. write generated `.h` and `.c` files into the build directory
+6. compile the generated `.c` files with the normal C compiler
 
 That means the `c+` step is part of the build graph, not a separate build system.
 
@@ -98,8 +99,9 @@ cmake --build build --target cplus_example_app
 That will:
 
 1. locate the installed `cplus` executable
-2. transpile `example/src/demo.hp` and `example/src/demo.cp`
-3. compile the generated C together with `example/src/main.c`
+2. discover every `example/src/*.hp` and `example/src/*.cp` file
+3. transpile them into `build/example/generated/`
+4. compile the generated C together with `example/src/main.c`
 
 If CMake does not find `cplus` automatically, pass it explicitly:
 
@@ -109,7 +111,7 @@ cmake -S . -B build -DCPLUS_BUILD_EXAMPLE=ON -DCPLUS_EXECUTABLE=$HOME/.local/bin
 
 ## Files
 
-- `src/demo.hp` and `src/demo.cp`: the source `c+` module
+- `src/*.hp` and `src/*.cp`: the source `c+` module(s)
 - `src/cplus_types.h`: temporary fixed-width aliases used by the generated C
 - `src/main.c`: a tiny C program that enters `c+` through exported `Main`
 - `CMakeLists.txt`: the recommended build integration pattern

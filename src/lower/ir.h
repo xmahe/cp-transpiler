@@ -32,8 +32,13 @@ struct CStruct {
 };
 
 struct CEnum {
+    struct Member {
+        std::string source_name;
+        std::string c_name;
+    };
+
     std::string name;
-    std::vector<std::string> members;
+    std::vector<Member> members;
 };
 
 struct CMaybeType {

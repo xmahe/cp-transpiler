@@ -202,6 +202,7 @@ void ast_to_model_program(
                 } else if constexpr (std::is_same_v<T, cplus::ast::ClassDecl>) {
                     cplus::model::ClassDecl model_decl;
                     model_decl.name = node.name.parts.empty() ? "" : node.name.parts.back();
+                    model_decl.is_struct = node.is_struct;
                     model_decl.namespace_path = namespace_path;
                     for (const auto& iface : node.implements) {
                         model_decl.implements.push_back(iface.parts.empty() ? "" : iface.parts.back());
@@ -304,6 +305,7 @@ void ast_to_model_program_group(
                     } else if constexpr (std::is_same_v<T, cplus::ast::ClassDecl>) {
                         cplus::model::ClassDecl model_decl;
                         model_decl.name = node.name.parts.empty() ? "" : node.name.parts.back();
+                        model_decl.is_struct = node.is_struct;
                         model_decl.namespace_path = namespace_path;
                         for (const auto& iface : node.implements) {
                             model_decl.implements.push_back(iface.parts.empty() ? "" : iface.parts.back());

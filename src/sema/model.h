@@ -92,6 +92,7 @@ struct InterfaceDecl {
 
 struct ClassDecl {
     std::string name;
+    bool is_struct = false;
     std::vector<std::string> namespace_path;
     std::vector<std::string> implements;
     std::vector<FieldDecl> fields;

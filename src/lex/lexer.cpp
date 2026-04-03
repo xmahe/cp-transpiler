@@ -24,6 +24,7 @@ bool is_keyword(std::string_view lexeme, TokenKind& kind_out) {
         {"fn", TokenKind::KeywordFn},
         {"namespace", TokenKind::KeywordNamespace},
         {"class", TokenKind::KeywordClass},
+        {"struct", TokenKind::KeywordStruct},
         {"interface", TokenKind::KeywordInterface},
         {"enum", TokenKind::KeywordEnum},
         {"implements", TokenKind::KeywordImplements},

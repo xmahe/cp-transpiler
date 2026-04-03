@@ -214,6 +214,7 @@ struct InterfaceDecl {
 
 struct ClassDecl {
     QualifiedName name;
+    bool is_struct = false;
     std::vector<QualifiedName> implements;
     std::vector<FieldDecl> fields;
     std::vector<FieldDecl> static_fields;

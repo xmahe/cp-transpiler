@@ -160,23 +160,23 @@ i32 Board___ReportState(DiagnosticState state) {
 
 const char* Board___DeviceMode___ToString(Board___DeviceMode value) {
     switch (value) {
-    case kDeviceModeOff: return "kDeviceModeOff";
-    case kDeviceModeStandby: return "kDeviceModeStandby";
-    case kDeviceModeActive: return "kDeviceModeActive";
-    case kDeviceModeFault: return "kDeviceModeFault";
-    case kDeviceModeSleep: return "kDeviceModeSleep";
-    case kDeviceModeN: return "kDeviceModeN";
+    case Board___DeviceMode___kDeviceModeOff: return "kDeviceModeOff";
+    case Board___DeviceMode___kDeviceModeStandby: return "kDeviceModeStandby";
+    case Board___DeviceMode___kDeviceModeActive: return "kDeviceModeActive";
+    case Board___DeviceMode___kDeviceModeFault: return "kDeviceModeFault";
+    case Board___DeviceMode___kDeviceModeSleep: return "kDeviceModeSleep";
+    case Board___DeviceMode___kDeviceModeN: return "kDeviceModeN";
     default: return "<invalid>";
     }
 }
 
 const char* Board___DiagnosticState___ToString(Board___DiagnosticState value) {
     switch (value) {
-    case kDiagnosticStateIdle: return "kDiagnosticStateIdle";
-    case kDiagnosticStateCollecting: return "kDiagnosticStateCollecting";
-    case kDiagnosticStateReporting: return "kDiagnosticStateReporting";
-    case kDiagnosticStateFault: return "kDiagnosticStateFault";
-    case kDiagnosticStateN: return "kDiagnosticStateN";
+    case Board___DiagnosticState___kDiagnosticStateIdle: return "kDiagnosticStateIdle";
+    case Board___DiagnosticState___kDiagnosticStateCollecting: return "kDiagnosticStateCollecting";
+    case Board___DiagnosticState___kDiagnosticStateReporting: return "kDiagnosticStateReporting";
+    case Board___DiagnosticState___kDiagnosticStateFault: return "kDiagnosticStateFault";
+    case Board___DiagnosticState___kDiagnosticStateN: return "kDiagnosticStateN";
     default: return "<invalid>";
     }
 }

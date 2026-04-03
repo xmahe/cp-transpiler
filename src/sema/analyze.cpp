@@ -251,7 +251,6 @@ void Analyzer::validate_declaration(const model::Declaration& decl, const Analys
 void Analyzer::validate_class(const model::ClassDecl& decl, const AnalysisOptions& options, AnalysisResult& result) const {
     validate_name_style(decl.name, "CamelCase", decl.range, result);
 
-    std::set<std::string> method_names;
     for (const auto& field : decl.fields) {
         validate_name_style(field.name, field.is_private_intent ? "_snake_case" : "snake_case", field.range, result);
         validate_type(field.type, options, result);
@@ -261,6 +260,21 @@ void Analyzer::validate_class(const model::ClassDecl& decl, const AnalysisOption
         validate_name_style(field.name, field.is_private_intent ? "_snake_case" : "snake_case", field.range, result);
         validate_type(field.type, options, result);
     }
+
+    if (decl.is_struct) {
+        if (!decl.implements.empty()) {
+            add_diagnostic(result, model::Severity::Error, decl.range, "struct cannot implement interfaces");
+        }
+        if (!decl.methods.empty() || !decl.constructors.empty() || decl.has_destruct) {
+            add_diagnostic(result, model::Severity::Error, decl.range, "struct may only contain fields");
+        }
+        if (!decl.static_fields.empty()) {
+            add_diagnostic(result, model::Severity::Error, decl.range, "struct may not contain static fields");
+        }
+        return;
+    }
+
+    std::set<std::string> method_names;
 
     for (const auto& method : decl.methods) {
         if (method.name != "Destruct") {

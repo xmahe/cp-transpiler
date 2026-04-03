@@ -37,7 +37,7 @@ void CEmitter::emit_maybe_type(std::string& out, const cplus::lower::CMaybeType&
 void CEmitter::emit_enum(std::string& out, const cplus::lower::CEnum& enumeration) {
     append_line(out, "typedef enum {");
     for (const auto& member : enumeration.members) {
-        append_line(out, "    " + member + ",");
+        append_line(out, "    " + member.c_name + ",");
     }
     append_line(out, "} " + enumeration.name + ";");
 }
@@ -166,7 +166,7 @@ std::string CEmitter::emit_source(const cplus::lower::CModule& module) const {
         append_line(out, "const char* " + enumeration.name + "___ToString(" + enumeration.name + " value) {");
         append_line(out, "    switch (value) {");
         for (const auto& member : enumeration.members) {
-            append_line(out, "    case " + member + ": return \"" + member + "\";");
+            append_line(out, "    case " + member.c_name + ": return \"" + member.source_name + "\";");
         }
         append_line(out, "    default: return \"<invalid>\";");
         append_line(out, "    }");

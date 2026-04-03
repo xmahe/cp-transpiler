@@ -6,7 +6,6 @@ void Board___SerialPort___Destruct(Board___SerialPort* self) {
     /* empty */
 }
 
-
 void Board___SerialPort___Start(Board___SerialPort* self) {
     /* empty */
 }
@@ -55,62 +54,6 @@ void Board___SerialConfig___Construct(Board___SerialConfig* self, u32 port_id, u
     /* empty */
 }
 
-void ShutdownSerial() {
-    /* empty */
-}
-
-i32 PollSerial(u8* buffer, u32 length) {
-    /* empty */
-}
-
-u8* SerialStateName(UartState state) {
-    /* empty */
-}
-
-u8* DriverModeName(DriverMode mode) {
-    /* empty */
-}
-
-DriverMode SelectMode(u32 request) {
-    /* empty */
-}
-
-u32 NormalizeBaudRate(u32 baud_rate) {
-    /* empty */
-}
-
-i32 IsPollingMode(DriverMode mode) {
-    /* empty */
-}
-
-__cplus_maybe_u32 AcquireSerialPort(u32 port_id) {
-    /* empty */
-}
-
-void ReportSerialStats(SerialStats stats) {
-    /* empty */
-}
-
-void ResetSerialStats() {
-    /* empty */
-}
-
-SerialSnapshot SnapshotSerialPort(u32 port_id) {
-    /* empty */
-}
-
-void TraceSerialEvent(u32 port_id, u8* message) {
-    /* empty */
-}
-
-SerialStats CollectSerialStats(u32 port_id) {
-    /* empty */
-}
-
-u8* FormatSerialConfig(Board___SerialConfig config) {
-    /* empty */
-}
-
 void Board___BootSerial(u32 port_id, u32 baud_rate) {
     /* empty */
 }
@@ -132,7 +75,7 @@ u8* Board___DriverModeName(DriverMode mode) {
 }
 
 DriverMode Board___SelectMode(u32 request) {
-    return kDriverModePolling;
+    return Board___DriverMode___kDriverModePolling;
 }
 
 u32 Board___NormalizeBaudRate(u32 baud_rate) {
@@ -147,7 +90,7 @@ __cplus_maybe_u32 Board___AcquireSerialPort(u32 port_id) {
     return 0;
 }
 
-void Board___ReportSerialStats(SerialStats stats) {
+void Board___ReportSerialStats(Board___SerialStats stats) {
     /* empty */
 }
 
@@ -155,8 +98,8 @@ void Board___ResetSerialStats() {
     /* empty */
 }
 
-SerialSnapshot Board___SnapshotSerialPort(u32 port_id) {
-    SerialSnapshot snapshot;
+Board___SerialSnapshot Board___SnapshotSerialPort(u32 port_id) {
+    Board___SerialSnapshot snapshot;
     return snapshot;
 }
 
@@ -164,8 +107,8 @@ void Board___TraceSerialEvent(u32 port_id, u8* message) {
     /* empty */
 }
 
-SerialStats Board___CollectSerialStats(u32 port_id) {
-    SerialStats stats;
+Board___SerialStats Board___CollectSerialStats(u32 port_id) {
+    Board___SerialStats stats;
     return stats;
 }
 
@@ -175,21 +118,22 @@ u8* Board___FormatSerialConfig(Board___SerialConfig config) {
 
 const char* Board___UartState___ToString(Board___UartState value) {
     switch (value) {
-    case kUartStateUninitialized: return "kUartStateUninitialized";
-    case kUartStateReady: return "kUartStateReady";
-    case kUartStateBusy: return "kUartStateBusy";
-    case kUartStateError: return "kUartStateError";
-    case kUartStateN: return "kUartStateN";
+    case Board___UartState___kUartStateUninitialized: return "kUartStateUninitialized";
+    case Board___UartState___kUartStateReady: return "kUartStateReady";
+    case Board___UartState___kUartStateBusy: return "kUartStateBusy";
+    case Board___UartState___kUartStateError: return "kUartStateError";
+    case Board___UartState___kUartStateN: return "kUartStateN";
     default: return "<invalid>";
     }
 }
 
 const char* Board___DriverMode___ToString(Board___DriverMode value) {
     switch (value) {
-    case kDriverModePolling: return "kDriverModePolling";
-    case kDriverModeInterrupt: return "kDriverModeInterrupt";
-    case kDriverModeDma: return "kDriverModeDma";
-    case kDriverModeN: return "kDriverModeN";
+    case Board___DriverMode___kDriverModePolling: return "kDriverModePolling";
+    case Board___DriverMode___kDriverModeInterrupt: return "kDriverModeInterrupt";
+    case Board___DriverMode___kDriverModeDma: return "kDriverModeDma";
+    case Board___DriverMode___kDriverModeN: return "kDriverModeN";
     default: return "<invalid>";
     }
 }
+

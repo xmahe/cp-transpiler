@@ -15,6 +15,7 @@ enum class TokenKind {
     KeywordFn,
     KeywordNamespace,
     KeywordClass,
+    KeywordStruct,
     KeywordInterface,
     KeywordEnum,
     KeywordImplements,

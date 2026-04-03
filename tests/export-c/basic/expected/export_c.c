@@ -22,10 +22,9 @@ void Board___InternalBoot() {
 
 const char* Board___Mode___ToString(Board___Mode value) {
     switch (value) {
-    case kModeIdle: return "kModeIdle";
-    case kModeBusy: return "kModeBusy";
-    case kModeN: return "kModeN";
+    case Board___Mode___kModeIdle: return "kModeIdle";
+    case Board___Mode___kModeBusy: return "kModeBusy";
+    case Board___Mode___kModeN: return "kModeN";
     default: return "<invalid>";
     }
 }
-

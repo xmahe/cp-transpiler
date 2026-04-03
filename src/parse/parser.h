@@ -52,6 +52,7 @@ private:
     ast::Span span_from(std::size_t begin_index, std::size_t end_index) const;
     ast::Declaration parse_namespace();
     ast::Declaration parse_class();
+    ast::Declaration parse_struct();
     ast::Declaration parse_interface();
     ast::Declaration parse_enum();
     ast::Declaration parse_function();

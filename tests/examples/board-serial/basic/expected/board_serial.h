@@ -10,20 +10,20 @@ typedef struct {
 } __cplus_maybe_u32;
 
 typedef enum {
-    kUartStateUninitialized,
-    kUartStateReady,
-    kUartStateBusy,
-    kUartStateError,
-    kUartStateN,
+    Board___UartState___kUartStateUninitialized,
+    Board___UartState___kUartStateReady,
+    Board___UartState___kUartStateBusy,
+    Board___UartState___kUartStateError,
+    Board___UartState___kUartStateN,
 } Board___UartState;
 
 const char* Board___UartState___ToString(Board___UartState value);
 
 typedef enum {
-    kDriverModePolling,
-    kDriverModeInterrupt,
-    kDriverModeDma,
-    kDriverModeN,
+    Board___DriverMode___kDriverModePolling,
+    Board___DriverMode___kDriverModeInterrupt,
+    Board___DriverMode___kDriverModeDma,
+    Board___DriverMode___kDriverModeN,
 } Board___DriverMode;
 
 const char* Board___DriverMode___ToString(Board___DriverMode value);
@@ -48,6 +48,25 @@ typedef struct Board___SerialConfig {
     u8 trace_enabled;
 } Board___SerialConfig;
 
+typedef struct Board___SerialStats {
+    u32 tx_bytes;
+    u32 rx_bytes;
+    u32 framing_errors;
+    u32 parity_errors;
+    u32 overrun_errors;
+    u32 dropped_bytes;
+    u32 retried_frames;
+} Board___SerialStats;
+
+typedef struct Board___SerialSnapshot {
+    u32 port_id;
+    UartState state;
+    DriverMode mode;
+    u32 tx_bytes;
+    u32 rx_bytes;
+    u32 error_count;
+} Board___SerialSnapshot;
+
 void Board___SerialPort___Destruct(Board___SerialPort* self);
 void Board___SerialPort___Start(Board___SerialPort* self);
 void Board___SerialPort___Stop(Board___SerialPort* self);
@@ -60,20 +79,6 @@ DriverMode Board___SerialPort___Mode(Board___SerialPort* self);
 void Board___SerialPort___Construct(Board___SerialPort* self, u32 port_id, u32 baud_rate);
 void Board___SerialConfig___Reset(Board___SerialConfig* self);
 void Board___SerialConfig___Construct(Board___SerialConfig* self, u32 port_id, u32 baud_rate);
-void ShutdownSerial();
-i32 PollSerial(u8* buffer, u32 length);
-u8* SerialStateName(UartState state);
-u8* DriverModeName(DriverMode mode);
-DriverMode SelectMode(u32 request);
-u32 NormalizeBaudRate(u32 baud_rate);
-i32 IsPollingMode(DriverMode mode);
-__cplus_maybe_u32 AcquireSerialPort(u32 port_id);
-void ReportSerialStats(SerialStats stats);
-void ResetSerialStats();
-SerialSnapshot SnapshotSerialPort(u32 port_id);
-void TraceSerialEvent(u32 port_id, u8* message);
-SerialStats CollectSerialStats(u32 port_id);
-u8* FormatSerialConfig(Board___SerialConfig config);
 void Board___BootSerial(u32 port_id, u32 baud_rate);
 void Board___ShutdownSerial();
 i32 Board___PollSerial(u8* buffer, u32 length);
@@ -83,11 +88,11 @@ DriverMode Board___SelectMode(u32 request);
 u32 Board___NormalizeBaudRate(u32 baud_rate);
 i32 Board___IsPollingMode(DriverMode mode);
 __cplus_maybe_u32 Board___AcquireSerialPort(u32 port_id);
-void Board___ReportSerialStats(SerialStats stats);
+void Board___ReportSerialStats(Board___SerialStats stats);
 void Board___ResetSerialStats();
-SerialSnapshot Board___SnapshotSerialPort(u32 port_id);
+Board___SerialSnapshot Board___SnapshotSerialPort(u32 port_id);
 void Board___TraceSerialEvent(u32 port_id, u8* message);
-SerialStats Board___CollectSerialStats(u32 port_id);
+Board___SerialStats Board___CollectSerialStats(u32 port_id);
 u8* Board___FormatSerialConfig(Board___SerialConfig config);
 
 #endif

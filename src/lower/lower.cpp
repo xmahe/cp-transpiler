@@ -53,7 +53,8 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
     module.source_name = "generated.c";
     std::unordered_set<std::string> seen_maybe_types;
     std::unordered_map<std::string, std::string> class_name_map;
-    std::unordered_set<std::string> enum_names;
+    std::unordered_map<std::string, std::string> enum_name_map;
+    std::unordered_map<std::string, std::string> enum_member_name_map;
     std::unordered_set<std::string> destructible_class_names;
     std::unordered_set<std::string> default_constructible_class_names;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> inject_bindings;
@@ -61,16 +62,26 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
     for (const auto& decl : analysis.program.declarations) {
         if (const auto* klass = std::get_if<cplus::model::ClassDecl>(&decl)) {
             class_name_map.emplace(klass->name, cplus::sema::NameMangler::mangle(klass->namespace_path, klass->name));
-            for (const auto& ctor : klass->constructors) {
-                if (ctor.parameters.empty()) {
-                    default_constructible_class_names.insert(klass->name);
+            if (!klass->is_struct) {
+                for (const auto& ctor : klass->constructors) {
+                    if (ctor.parameters.empty()) {
+                        default_constructible_class_names.insert(klass->name);
+                    }
+                }
+                if (klass->has_destruct) {
+                    destructible_class_names.insert(klass->name);
                 }
             }
-            if (klass->has_destruct) {
-                destructible_class_names.insert(klass->name);
-            }
         } else if (const auto* enumeration = std::get_if<cplus::model::EnumDecl>(&decl)) {
-            enum_names.insert(enumeration->name);
+            const auto mangled_enum_name = cplus::sema::NameMangler::mangle(enumeration->namespace_path, enumeration->name);
+            enum_name_map.emplace(enumeration->name, mangled_enum_name);
+            for (const auto& member : enumeration->members) {
+                const auto c_name = mangled_enum_name + "___" + member;
+                const auto [it, inserted] = enum_member_name_map.emplace(member, c_name);
+                if (!inserted && it->second != c_name) {
+                    it->second.clear();
+                }
+            }
         } else if (const auto* bind = std::get_if<cplus::model::BindDecl>(&decl)) {
             inject_bindings[bind->owner_type][bind->slot_name] = bind->concrete_type;
         }
@@ -114,14 +125,16 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                     }
                     const auto lowered_class = lower_class(node, class_name_map, inject_bindings);
                     module.structs.push_back(lowered_class);
-                    for (const auto& global : lower_static_fields(node, class_name_map, inject_bindings)) {
-                        module.globals.push_back(global);
-                    }
-                    for (const auto& method : node.methods) {
-                        module.functions.push_back(lower_method(method, lowered_class.name, node.name, node.fields, method_names, class_name_map, enum_names, inject_bindings, default_constructible_class_names, destructible_class_names));
-                    }
-                    for (const auto& ctor : node.constructors) {
-                        module.functions.push_back(lower_method(ctor, lowered_class.name, node.name, node.fields, method_names, class_name_map, enum_names, inject_bindings, default_constructible_class_names, destructible_class_names));
+                    if (!node.is_struct) {
+                        for (const auto& global : lower_static_fields(node, class_name_map, inject_bindings)) {
+                            module.globals.push_back(global);
+                        }
+                        for (const auto& method : node.methods) {
+                            module.functions.push_back(lower_method(method, lowered_class.name, node.name, node.fields, method_names, class_name_map, enum_name_map, enum_member_name_map, inject_bindings, default_constructible_class_names, destructible_class_names));
+                        }
+                        for (const auto& ctor : node.constructors) {
+                            module.functions.push_back(lower_method(ctor, lowered_class.name, node.name, node.fields, method_names, class_name_map, enum_name_map, enum_member_name_map, inject_bindings, default_constructible_class_names, destructible_class_names));
+                        }
                     }
                 } else if constexpr (std::is_same_v<T, cplus::model::EnumDecl>) {
                     module.enums.push_back(lower_enum(node));
@@ -130,7 +143,7 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                     for (const auto& param : node.signature.parameters) {
                         ensure_maybe(param.type);
                     }
-                    module.functions.push_back(lower_function(node, class_name_map, enum_names, default_constructible_class_names, destructible_class_names));
+                    module.functions.push_back(lower_function(node, class_name_map, enum_name_map, enum_member_name_map, default_constructible_class_names, destructible_class_names));
                 } else if constexpr (std::is_same_v<T, cplus::model::InterfaceDecl>) {
                     for (const auto& method : node.methods) {
                         ensure_maybe(method.return_type);
@@ -193,13 +206,19 @@ std::vector<CGlobal> Lowerer::lower_static_fields(
 }
 
 CEnum Lowerer::lower_enum(const cplus::model::EnumDecl& decl) const {
-    return CEnum{cplus::sema::NameMangler::mangle(decl.namespace_path, decl.name), decl.members};
+    CEnum result;
+    result.name = cplus::sema::NameMangler::mangle(decl.namespace_path, decl.name);
+    for (const auto& member : decl.members) {
+        result.members.push_back(CEnum::Member{member, result.name + "___" + member});
+    }
+    return result;
 }
 
 CFunction Lowerer::lower_function(
     const cplus::model::FunctionDecl& decl,
     const std::unordered_map<std::string, std::string>& class_name_map,
-    const std::unordered_set<std::string>& enum_names,
+    const std::unordered_map<std::string, std::string>& enum_name_map,
+    const std::unordered_map<std::string, std::string>& enum_member_name_map,
     const std::unordered_set<std::string>& default_constructible_class_names,
     const std::unordered_set<std::string>& destructible_class_names) const {
     CFunction result;
@@ -214,7 +233,7 @@ CFunction Lowerer::lower_function(
     const auto raii_body = rewrite_returns_with_raii(constructor_body, result.return_type, class_name_map, destructible_class_names);
     const auto local_names = collect_local_names(raii_body);
     const auto local_object_types = collect_local_object_types(raii_body, class_name_map);
-    result.body_lines = lower_body_lines(rewrite_method_body(raii_body, "", {}, local_names, {}, enum_names, {}, local_object_types));
+    result.body_lines = lower_body_lines(rewrite_method_body(raii_body, "", {}, local_names, {}, enum_name_map, enum_member_name_map, {}, local_object_types));
     result.linkage = decl.signature.is_static ? CLinkage::Internal : CLinkage::External;
     return result;
 }
@@ -226,7 +245,8 @@ CFunction Lowerer::lower_method(
     const std::vector<cplus::model::FieldDecl>& instance_fields,
     const std::unordered_set<std::string>& method_names,
     const std::unordered_map<std::string, std::string>& class_name_map,
-    const std::unordered_set<std::string>& enum_names,
+    const std::unordered_map<std::string, std::string>& enum_name_map,
+    const std::unordered_map<std::string, std::string>& enum_member_name_map,
     const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
     const std::unordered_set<std::string>& default_constructible_class_names,
     const std::unordered_set<std::string>& destructible_class_names) const {
@@ -293,7 +313,8 @@ CFunction Lowerer::lower_method(
         class_name,
         method_names,
         class_name_map,
-        enum_names,
+        enum_name_map,
+        enum_member_name_map,
         inject_bindings);
     result.linkage = (sig.is_static || sig.is_private) ? CLinkage::Internal : CLinkage::External;
     return result;
@@ -388,7 +409,8 @@ std::vector<std::string> Lowerer::lower_method_body_lines(
     std::string_view class_name,
     const std::unordered_set<std::string>& method_names,
     const std::unordered_map<std::string, std::string>& class_name_map,
-    const std::unordered_set<std::string>& enum_names,
+    const std::unordered_map<std::string, std::string>& enum_name_map,
+    const std::unordered_map<std::string, std::string>& enum_member_name_map,
     const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) {
     if (sig.is_static || body_source.empty()) {
         return lower_body_lines(body_source);
@@ -418,7 +440,7 @@ std::vector<std::string> Lowerer::lower_method_body_lines(
     }
     local_names.insert("self");
 
-    return lower_body_lines(rewrite_method_body(body_source, class_name, field_names, local_names, method_names, enum_names, field_object_types, local_object_types));
+    return lower_body_lines(rewrite_method_body(body_source, class_name, field_names, local_names, method_names, enum_name_map, enum_member_name_map, field_object_types, local_object_types));
 }
 
 std::string Lowerer::rewrite_method_body(
@@ -427,7 +449,8 @@ std::string Lowerer::rewrite_method_body(
     const std::unordered_set<std::string>& field_names,
     const std::unordered_set<std::string>& local_names,
     const std::unordered_set<std::string>& method_names,
-    const std::unordered_set<std::string>& enum_names,
+    const std::unordered_map<std::string, std::string>& enum_name_map,
+    const std::unordered_map<std::string, std::string>& enum_member_name_map,
     const std::unordered_map<std::string, std::string>& field_object_types,
     const std::unordered_map<std::string, std::string>& local_object_types) {
     if (body_source.empty()) {
@@ -465,16 +488,37 @@ std::string Lowerer::rewrite_method_body(
         }
 
         if (token.kind == cplus::lex::TokenKind::Identifier &&
-            enum_names.find(token.lexeme) != enum_names.end() &&
+            enum_name_map.find(token.lexeme) != enum_name_map.end() &&
             local_names.find(token.lexeme) == local_names.end() &&
             i + 2 < tokens.size() &&
             tokens[i + 1].kind == cplus::lex::TokenKind::Punctuation && tokens[i + 1].lexeme == "::" &&
             tokens[i + 2].kind == cplus::lex::TokenKind::Identifier) {
+            rewritten.append(enum_name_map.at(token.lexeme));
+            rewritten.append("___");
             rewritten.append(tokens[i + 2].lexeme);
             cursor = tokens[i + 2].span.end.offset;
             i += 2;
             at_statement_start = false;
             continue;
+        }
+
+        if (token.kind == cplus::lex::TokenKind::Identifier &&
+            local_names.find(token.lexeme) == local_names.end()) {
+            const auto enum_member_it = enum_member_name_map.find(token.lexeme);
+            if (enum_member_it != enum_member_name_map.end() && !enum_member_it->second.empty()) {
+                const bool preceded_by_member =
+                    i > 0 && tokens[i - 1].kind == cplus::lex::TokenKind::Punctuation &&
+                    (tokens[i - 1].lexeme == "." || tokens[i - 1].lexeme == "->" || tokens[i - 1].lexeme == "::");
+                const bool followed_by_scope =
+                    i + 1 < tokens.size() && tokens[i + 1].kind == cplus::lex::TokenKind::Punctuation &&
+                    tokens[i + 1].lexeme == "::";
+                if (!preceded_by_member && !followed_by_scope) {
+                    rewritten.append(enum_member_it->second);
+                    cursor = token.span.end.offset;
+                    at_statement_start = false;
+                    continue;
+                }
+            }
         }
 
         if (token.kind == cplus::lex::TokenKind::Identifier &&

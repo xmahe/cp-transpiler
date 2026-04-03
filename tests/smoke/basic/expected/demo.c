@@ -14,10 +14,9 @@ void Board___Boot() {
 
 const char* Board___UartState___ToString(Board___UartState value) {
     switch (value) {
-    case kUartStateIdle: return "kUartStateIdle";
-    case kUartStateBusy: return "kUartStateBusy";
-    case kUartStateN: return "kUartStateN";
+    case Board___UartState___kUartStateIdle: return "kUartStateIdle";
+    case Board___UartState___kUartStateBusy: return "kUartStateBusy";
+    case Board___UartState___kUartStateN: return "kUartStateN";
     default: return "<invalid>";
     }
 }
-

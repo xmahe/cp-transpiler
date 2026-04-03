@@ -5,9 +5,9 @@
 #include <stdint.h>
 
 typedef enum {
-    kIdle,
-    kBusy,
-    kN,
+    Demo___Greeting___kIdle,
+    Demo___Greeting___kBusy,
+    Demo___Greeting___kN,
 } Demo___Greeting;
 
 const char* Demo___Greeting___ToString(Demo___Greeting value);

@@ -5,9 +5,9 @@
 #include <stdint.h>
 
 typedef enum {
-    kUartStateIdle,
-    kUartStateBusy,
-    kUartStateN,
+    Board___UartState___kUartStateIdle,
+    Board___UartState___kUartStateBusy,
+    Board___UartState___kUartStateN,
 } Board___UartState;
 
 const char* Board___UartState___ToString(Board___UartState value);

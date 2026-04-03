@@ -29,7 +29,8 @@ private:
     CFunction lower_function(
         const cplus::model::FunctionDecl& decl,
         const std::unordered_map<std::string, std::string>& class_name_map,
-        const std::unordered_set<std::string>& enum_names,
+        const std::unordered_map<std::string, std::string>& enum_name_map,
+        const std::unordered_map<std::string, std::string>& enum_member_name_map,
         const std::unordered_set<std::string>& default_constructible_class_names,
         const std::unordered_set<std::string>& destructible_class_names) const;
     CFunction lower_method(
@@ -39,7 +40,8 @@ private:
         const std::vector<cplus::model::FieldDecl>& instance_fields,
         const std::unordered_set<std::string>& method_names,
         const std::unordered_map<std::string, std::string>& class_name_map,
-        const std::unordered_set<std::string>& enum_names,
+        const std::unordered_map<std::string, std::string>& enum_name_map,
+        const std::unordered_map<std::string, std::string>& enum_member_name_map,
         const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
         const std::unordered_set<std::string>& default_constructible_class_names,
         const std::unordered_set<std::string>& destructible_class_names) const;
@@ -58,7 +60,8 @@ private:
         std::string_view class_name,
         const std::unordered_set<std::string>& method_names,
         const std::unordered_map<std::string, std::string>& class_name_map,
-        const std::unordered_set<std::string>& enum_names,
+        const std::unordered_map<std::string, std::string>& enum_name_map,
+        const std::unordered_map<std::string, std::string>& enum_member_name_map,
         const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings);
     static std::string rewrite_method_body(
         std::string_view body_source,
@@ -66,7 +69,8 @@ private:
         const std::unordered_set<std::string>& field_names,
         const std::unordered_set<std::string>& local_names,
         const std::unordered_set<std::string>& method_names,
-        const std::unordered_set<std::string>& enum_names,
+        const std::unordered_map<std::string, std::string>& enum_name_map,
+        const std::unordered_map<std::string, std::string>& enum_member_name_map,
         const std::unordered_map<std::string, std::string>& field_object_types,
         const std::unordered_map<std::string, std::string>& local_object_types);
     static std::unordered_set<std::string> collect_local_names(std::string_view body_source);

@@ -1,0 +1,16 @@
+namespace Board {
+
+enum UartState {
+    kUartStateIdle,
+    kUartStateBusy,
+    kUartStateN,
+}
+
+class Uart {
+public:
+    u32 baud_rate;
+    fn Construct(u32 baud_rate) -> void;
+    fn Write(u8* data, u32 length) -> i32;
+}
+
+}

@@ -27,6 +27,28 @@ This builds:
 - `cplus`, the transpiler executable
 - `cplus_lib`, the shared compiler library used by tests
 
+## Install
+
+Install the transpiler into your user-local prefix:
+
+```sh
+cmake -S . -B build
+cmake --build build
+cmake --install build
+```
+
+By default, this installs to:
+
+```text
+$HOME/.local/bin/cplus
+```
+
+If you want another location, override the install prefix when configuring:
+
+```sh
+cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/some/other/prefix
+```
+
 ## Test
 
 Run the full automated suite with CTest:
@@ -70,6 +92,7 @@ Still left before v1.0:
 
 - [src](/Users/magnus/c+/src): compiler implementation
 - [tests](/Users/magnus/c+/tests): fixture tests, CTest integration, and unit tests
+- [example](/Users/magnus/c+/example): example generated-C project showing how to integrate transpilation in CMake
 - [language-definition.md](/Users/magnus/c+/language-definition.md): language guide
 - [language-syntax.md](/Users/magnus/c+/language-syntax.md): syntax guide
 - [transpiler-architecture.md](/Users/magnus/c+/transpiler-architecture.md): compiler architecture guide
@@ -84,6 +107,7 @@ Still left before v1.0:
 - [next-step-plan.md](/Users/magnus/c+/next-step-plan.md): near-term compiler work plan
 - [src/README.md](/Users/magnus/c+/src/README.md): beginner-friendly walkthrough of the compiler source tree
 - [tests/README.md](/Users/magnus/c+/tests/README.md): how the test harness works
+- [example/README.md](/Users/magnus/c+/example/README.md): how to wire a `c+` module into a real CMake build
 - [tests/examples/README.md](/Users/magnus/c+/tests/examples/README.md): overview of larger example inputs
 - [tests/examples/board-serial/basic/README.md](/Users/magnus/c+/tests/examples/board-serial/basic/README.md): notes for the board-serial example
 

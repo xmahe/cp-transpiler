@@ -56,6 +56,7 @@ struct MethodDecl {
     std::vector<MemberInitializer> member_initializers;
     bool is_static = false;
     bool is_implementation = false;
+    bool is_export_c = false;
     bool is_private = false;
     Span span{};
 };

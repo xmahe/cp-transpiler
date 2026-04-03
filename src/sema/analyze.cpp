@@ -624,6 +624,15 @@ void Analyzer::validate_maybe_flow(const model::Program& program, const Analysis
 }
 
 void Analyzer::validate_function_body_restrictions(const model::FunctionDecl& decl, AnalysisResult& result) const {
+    if (decl.signature.is_export_c) {
+        if (!decl.owner_type_path.empty()) {
+            add_diagnostic(result, model::Severity::Error, decl.range, "export_c is only allowed on free functions");
+        }
+        if (decl.signature.is_static) {
+            add_diagnostic(result, model::Severity::Error, decl.range, "export_c cannot be combined with static");
+        }
+    }
+
     const auto& body = decl.body_source;
     if (body.empty()) {
         return;

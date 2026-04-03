@@ -1,0 +1,22 @@
+namespace Board {
+
+enum Mode {
+    kModeIdle,
+    kModeBusy,
+    kModeN,
+}
+
+class Gpio {
+public:
+    u32 value;
+    fn Construct() -> void;
+    fn Toggle() -> void;
+
+private:
+    fn Helper() -> void;
+}
+
+export_c fn Main() -> i32;
+fn InternalBoot() -> void;
+
+}

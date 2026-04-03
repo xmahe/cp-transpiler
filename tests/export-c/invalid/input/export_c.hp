@@ -1,0 +1,8 @@
+namespace Board {
+
+class Gpio {
+public:
+    fn Construct() -> void;
+}
+
+}

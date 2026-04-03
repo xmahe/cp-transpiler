@@ -348,6 +348,7 @@ Syntax:
 ```c
 fn Boot() -> void;
 fn NormalizeBaudRate(u32 baud_rate) -> u32;
+export_c fn Main() -> i32;
 ```
 
 Definition:
@@ -359,6 +360,26 @@ fn NormalizeBaudRate(u32 baud_rate) -> u32 {
 ```
 
 These lower to plain namespaced C functions.
+
+`export_c` exposes a free function with a plain C symbol:
+
+```c
+namespace Board {
+
+export_c fn Main() -> i32 {
+    return 0;
+}
+
+fn InternalBoot() -> void {
+}
+
+}
+```
+
+That lowers like:
+
+- `Main` -> `Main`
+- `InternalBoot` -> `Board___InternalBoot`
 
 ## maybe<T>
 

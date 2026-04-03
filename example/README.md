@@ -16,6 +16,36 @@ The clean build model is:
 
 That means the `c+` step is part of the build graph, not a separate build system.
 
+## Crossing From C Into `c+`
+
+The clean boundary is an exported free function:
+
+```c
+namespace Board {
+
+export_c fn Main() -> i32 {
+    return 0;
+}
+
+}
+```
+
+`export_c` means:
+
+- the function is callable directly from handwritten C
+- the emitted C symbol keeps the plain function name
+- the rest of the module can still stay inside normal namespace-mangled `c+`
+
+So the handwritten C side can stay simple:
+
+```c
+#include "demo.h"
+
+int main(void) {
+    return Main();
+}
+```
+
 ## Why Not A `PRE_BUILD` Step?
 
 `PRE_BUILD` is the wrong shape here:
@@ -71,11 +101,17 @@ That will:
 2. transpile `example/cplus/demo.hp` and `example/cplus/demo.cp`
 3. compile the generated C together with `example/src/main.c`
 
+If CMake does not find `cplus` automatically, pass it explicitly:
+
+```sh
+cmake -S . -B build -DCPLUS_BUILD_EXAMPLE=ON -DCPLUS_EXECUTABLE=$HOME/.local/bin/cplus
+```
+
 ## Files
 
 - `cplus/`: the source `c+` module
 - `include/cplus_types.h`: temporary fixed-width aliases used by the generated C
-- `src/main.c`: a tiny C program that calls the generated API
+- `src/main.c`: a tiny C program that enters `c+` through exported `Main`
 - `CMakeLists.txt`: the recommended build integration pattern
 
 ## Why The Example Is Off By Default

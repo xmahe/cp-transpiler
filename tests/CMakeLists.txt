@@ -46,6 +46,8 @@ add_transpile_pass_test(body_parsing_basic body-parsing/basic/input body-parsing
 add_transpile_fail_test(body_parsing_invalid body-parsing/invalid/input body-parsing/invalid/expected)
 add_transpile_pass_test(example_transpile_basic example-transpile/basic/input example-transpile/basic/expected)
 add_transpile_pass_test(board_serial_example examples/board-serial/basic/input examples/board-serial/basic/expected)
+add_transpile_pass_test(export_c_basic export-c/basic/input export-c/basic/expected)
+add_transpile_fail_test(export_c_invalid export-c/invalid/input export-c/invalid/expected)
 add_transpile_pass_test(out_of_class_methods_basic out-of-class-methods/basic/input out-of-class-methods/basic/expected)
 add_transpile_pass_test(out_of_class_method_calls_basic out-of-class-method-calls/basic/input out-of-class-method-calls/basic/expected)
 add_transpile_pass_test(out_of_class_object_method_calls_basic out-of-class-object-method-calls/basic/input out-of-class-object-method-calls/basic/expected)

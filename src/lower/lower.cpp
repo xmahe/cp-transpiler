@@ -196,7 +196,9 @@ CFunction Lowerer::lower_function(
     const std::unordered_map<std::string, std::string>& class_name_map,
     const std::unordered_set<std::string>& destroyable_class_names) const {
     CFunction result;
-    result.name = cplus::sema::NameMangler::mangle(decl.namespace_path, decl.signature.name);
+    result.name = decl.signature.is_export_c
+        ? decl.signature.name
+        : cplus::sema::NameMangler::mangle(decl.namespace_path, decl.signature.name);
     result.return_type = to_c_type(decl.signature.return_type, class_name_map);
     for (const auto& param : decl.signature.parameters) {
         result.parameters.push_back(CParameter{param.name, to_c_type(param.type, class_name_map)});

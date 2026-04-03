@@ -71,8 +71,11 @@ This is very important, because many language features depend on it:
 - free function declarations in `.hp`
 - free function bodies in `.cp`
 - compile-time DI bindings that may live beside the class they configure
+- `export_c` free functions that form a clean C ABI boundary
 
 Without module pairing, the language becomes awkward very quickly.
+
+During lowering and emission, `export_c` free functions bypass normal namespace mangling and keep a plain C-callable symbol name.
 
 In practice, this means a build can provide a small wiring module that binds interface slots to concrete classes for a specific board or firmware variant.
 

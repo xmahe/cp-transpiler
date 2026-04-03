@@ -21,6 +21,11 @@ Main remaining gaps before v1.0:
 - deeper C interop modeling
 - broader RAII cleanup support beyond the current slices
 
+Exported C entrypoints should stay simple:
+
+- `export_c` applies only to free functions
+- exported free functions bypass namespace mangling during lowering and emission
+
 ## Recommendation
 
 Implement the transpiler in modern C++.

@@ -251,6 +251,11 @@ std::pair<ast::QualifiedName, ast::MethodDecl> Parser::parse_function_signature(
     ast::MethodDecl decl;
     ast::QualifiedName name;
 
+    if (check(lex::TokenKind::KeywordExportC)) {
+        decl.is_export_c = true;
+        ++current_index_;
+    }
+
     if (check(lex::TokenKind::KeywordStatic)) {
         decl.is_static = true;
         ++current_index_;
@@ -696,7 +701,7 @@ std::vector<ast::Declaration> Parser::parse_block_declarations() {
             decls.push_back(parse_interface());
         } else if (check(lex::TokenKind::KeywordEnum)) {
             decls.push_back(parse_enum());
-        } else if (check(lex::TokenKind::KeywordFn)) {
+        } else if (check(lex::TokenKind::KeywordFn) || check(lex::TokenKind::KeywordExportC)) {
             decls.push_back(parse_function());
         } else if (check(lex::TokenKind::KeywordBind)) {
             decls.push_back(parse_bind_declaration());
@@ -908,6 +913,10 @@ ast::Declaration Parser::parse_function() {
     std::string body;
     std::unique_ptr<ast::BlockStmt> body_ast;
 
+    if (signature.is_export_c && name.parts.size() > 1) {
+        diagnostics_.error("export_c is only allowed on free functions", signature.span, source_path_.string());
+    }
+
     if (check(lex::TokenKind::Punctuation) && current().lexeme == "{") {
         const std::size_t open_index = current_index_;
         body_ast = parse_function_body();
@@ -958,7 +967,7 @@ ast::Module Parser::parse_module() {
             module.declarations.push_back(parse_enum());
             continue;
         }
-        if (check(lex::TokenKind::KeywordFn)) {
+        if (check(lex::TokenKind::KeywordFn) || check(lex::TokenKind::KeywordExportC)) {
             module.declarations.push_back(parse_function());
             continue;
         }

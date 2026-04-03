@@ -559,3 +559,28 @@ So the right mental model is:
 - but the compiler is not done yet
 
 That is normal for the stage this project is in.
+
+## `export_c`
+
+`export_c` is the explicit boundary from handwritten C into `c+`.
+
+Example:
+
+```c
+namespace Board {
+
+export_c fn Main() -> i32 {
+    return 0;
+}
+
+fn InternalBoot() -> void {
+}
+
+}
+```
+
+Rules:
+
+- `export_c` is only allowed on free functions
+- exported functions bypass namespace prefix mangling
+- ordinary free functions still use the normal mangled namespace prefix

@@ -43,6 +43,7 @@ cplus::model::FunctionSignature to_model_signature(const cplus::ast::MethodDecl&
     sig.return_type = to_model_type(method.return_type);
     sig.is_static = method.is_static;
     sig.is_implementation = method.is_implementation;
+    sig.is_export_c = method.is_export_c;
     sig.is_private = method.is_private;
     for (const auto& param : method.parameters) {
         sig.parameters.push_back(to_model_parameter(param, file));

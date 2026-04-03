@@ -43,10 +43,17 @@ struct Parameter {
     Span span{};
 };
 
+struct MemberInitializer {
+    std::string field_name;
+    std::vector<std::string> arguments;
+    Span span{};
+};
+
 struct MethodDecl {
     std::string name;
     TypeRef return_type;
     std::vector<Parameter> parameters;
+    std::vector<MemberInitializer> member_initializers;
     bool is_static = false;
     bool is_implementation = false;
     bool is_private = false;
@@ -57,7 +64,15 @@ struct FieldDecl {
     std::string name;
     TypeRef type;
     bool is_static = false;
+    bool is_inject = false;
     bool is_private_intent = false;
+    Span span{};
+};
+
+struct BindDecl {
+    QualifiedName owner_type;
+    std::string slot_name;
+    QualifiedName concrete_type;
     Span span{};
 };
 
@@ -186,7 +201,7 @@ struct Statement {
 
 struct NamespaceDecl {
     QualifiedName name;
-    std::vector<std::variant<NamespaceDecl, struct InterfaceDecl, struct ClassDecl, struct EnumDecl, struct FunctionDecl, struct RawCDecl>> declarations;
+    std::vector<std::variant<NamespaceDecl, struct InterfaceDecl, struct ClassDecl, struct EnumDecl, struct FunctionDecl, struct RawCDecl, BindDecl>> declarations;
     Span span{};
 };
 
@@ -226,7 +241,7 @@ struct RawCDecl {
     Span span{};
 };
 
-using Declaration = std::variant<NamespaceDecl, InterfaceDecl, ClassDecl, EnumDecl, FunctionDecl, RawCDecl>;
+using Declaration = std::variant<NamespaceDecl, InterfaceDecl, ClassDecl, EnumDecl, FunctionDecl, RawCDecl, BindDecl>;
 
 struct Module {
     std::filesystem::path source_path;

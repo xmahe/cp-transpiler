@@ -1,5 +1,26 @@
 # c+ Transpiler Implementation Spec
 
+## Current Status
+
+This document describes the intended compiler shape, but the project is no longer just a proposal.
+
+What already exists:
+
+- a working C++ compiler implementation
+- a pass-oriented structure with `lex`, `parse`, `sema`, `lower`, and `emit`
+- a lowered IR
+- CMake build support
+- CTest fixture tests
+- optional GoogleTest unit tests
+- real support for namespaces, classes, interfaces, `maybe<T>`, compile-time DI, member initializers, and several RAII cases
+
+Main remaining gaps before v1.0:
+
+- fuller AST-driven body parsing and lowering
+- stronger `maybe<T>` control-flow analysis
+- deeper C interop modeling
+- broader RAII cleanup support beyond the current slices
+
 ## Recommendation
 
 Implement the transpiler in modern C++.

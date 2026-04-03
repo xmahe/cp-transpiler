@@ -2,14 +2,54 @@
 
 ## Purpose
 
-This document turns the architecture and implementation specs into an execution plan for building the first `c+` transpiler.
+This is the master roadmap for getting the `c+` transpiler to v1.0.
 
-The goal is not to finish the whole compiler in one pass. The goal is to build a skeleton that is correctly shaped for:
+It is no longer a blank-slate scaffold plan. The compiler already exists, builds through CMake, and has real end-to-end coverage. This document should answer two questions:
 
-- parsing `c+`
-- validating the language rules
-- lowering to ordinary C
-- remaining small enough for a weekend project
+- what is already done
+- what still blocks v1.0
+
+## v1.0 Status
+
+### Done
+
+- C++ compiler implementation under `src/`
+- pass-oriented structure: discovery, lex, parse, sema, lower, emit
+- dedicated lowered IR
+- paired `.hp` / `.cp` module handling
+- namespace lowering and mangling
+- enums with generated `ToString`
+- classes, interfaces, and exact-match interface fulfillment checks
+- compile-time DI with `inject` and `bind`
+- constructor member initializers
+- several RAII lowering slices for returns, fallthrough, nested return cases, and member subobjects
+- fixture-based end-to-end tests through CTest
+- optional GoogleTest unit tests
+- CMake build
+
+### In Progress
+
+- structural parsing and lowering of function/method bodies
+- replacing source-preserving body handling with AST-driven lowering
+- strengthening `maybe<T>` path safety checks
+- broadening RAII from current slices to a more complete scope model
+
+### Remaining For v1.0
+
+- robust statement/expression parsing for the supported language subset
+- AST-driven body semantic analysis instead of text-based fallbacks
+- fuller method-body lowering, especially beyond simple rewrites
+- clearer and more reliable C interop rules
+- a defined “supported real file” boundary with at least one realistic embedded example that stays green
+- documentation cleanup so the language guide and compiler status match the implementation exactly
+
+### Post-v1.0
+
+- full dominance-style `maybe<T>` proof
+- deeper const inference
+- richer C parsing and analysis
+- broader unit-test coverage
+- anything that starts turning the transpiler into a much larger compiler project
 
 ## Implementation Language
 
@@ -17,28 +57,12 @@ Use modern C++ for the transpiler.
 
 Reasons:
 
-- `std::string` and `std::string_view` are good enough
-- `std::vector` and hash maps are sufficient
-- `std::filesystem` simplifies source discovery
-- deployment stays simple in the same environments that already build C/C++
+- `std::string` and `std::string_view` are enough
+- `std::vector`, `std::optional`, and standard containers are enough
+- `std::filesystem` simplifies discovery and output handling
+- deployment stays simple on the same systems that already build embedded C/C++
 
-The compiler project should use C++ pragmatically, not as a playground for advanced C++.
-
-## Top-Level Plan
-
-Implementation order:
-
-1. Create project skeleton under `src/`
-2. Implement diagnostics and file handling
-3. Implement token model and lexer
-4. Implement AST
-5. Implement parser
-6. Implement symbol collection
-7. Implement semantic analysis
-8. Implement lifetime analysis
-9. Implement lowering to a C-oriented IR
-10. Implement `.h` and `.c` emission
-11. Add snapshot-style tests later
+The compiler project should use C++ pragmatically, not as a language playground.
 
 ## Pass Order
 
@@ -126,74 +150,56 @@ Responsibilities:
 
 ## Milestone Breakdown
 
-### Milestone 0: Skeleton
-
-Deliverables:
+### Milestone 0: Skeleton `[done]`
 
 - `src/` tree exists
 - main executable entrypoint exists
-- modules compile in principle as a scaffold
+- module boundaries are clear
 
-Success criteria:
-
-- file boundaries and module responsibilities are clear
-- no pass is forced to know too much too early
-
-### Milestone 1: Lexing and AST
-
-Deliverables:
+### Milestone 1: Frontend Basics `[done]`
 
 - token model
 - lexer API
 - AST node definitions
 - parser entrypoint
 
-Success criteria:
+### Milestone 2: Semantic Shape `[done]`
 
-- a file can be tokenized
-- parser can return a `Module` or diagnostics
+- symbol collection
+- core semantic analysis driver
+- diagnostics for naming, namespace shape, forbidden constructs, enum rules, interfaces, and several class rules
 
-### Milestone 2: Semantic Shape
-
-Deliverables:
-
-- symbol collector
-- semantic analysis driver
-- diagnostics for obvious rule violations
-
-Initial rules to enforce first:
-
-- one top-level namespace block per file
-- naming style
-- no forbidden tokens/operators
-- enum trailing `...N`
-- `implements` / `implementation` shape
-
-### Milestone 3: Lowering and Emission
-
-Deliverables:
+### Milestone 3: Lowering and Emission `[done]`
 
 - lowered IR
 - header emitter
 - source emitter
+- enum lowering
+- namespace mangling
+- class and method lowering
 
-Initial generation target:
+### Milestone 4: RAII, `maybe<T>`, and DI `[in progress]`
 
-- enums
-- plain structs
-- public method declarations
-- stub function bodies
+- generated C representation for `maybe<T>` `[done]`
+- lightweight `maybe<T>` safety checking `[done]`
+- compile-time DI with `inject`/`bind` `[done]`
+- cleanup label generation for current supported cases `[done]`
+- broader AST-driven lifetime handling `[todo]`
+- stronger control-flow proof for `maybe<T>` `[todo]`
 
-### Milestone 4: RAII and `maybe<T>`
+### Milestone 5: Real Body Support `[in progress]`
 
-Deliverables:
+- body AST exists in part `[done]`
+- some body rewrites already work `[done]`
+- full supported statement/expression subset still needs completion `[todo]`
+- semantic checks still need to move fully off text-based fallbacks `[todo]`
 
-- lifetime analysis
-- cleanup label generation
-- `maybe<T>` flow-sensitive safety check
-- generated C representation for `maybe<T>`
+### Milestone 6: v1.0 Hardening `[todo]`
 
-This milestone is where the transpiler becomes genuinely interesting.
+- document supported language boundary precisely
+- harden C interop expectations
+- expand realistic fixture coverage
+- close the biggest body-lowering gaps
 
 ## Immediate Coding Priorities
 
@@ -257,18 +263,24 @@ Diagnostics should be threaded through all major passes.
 - `CEnum`
 - `CFunction`
 
-## Hard Problems to Defer
+## Main v1.0 Blockers
 
-Do not solve these in the first scaffold:
+These are the main things still standing between the current compiler and a credible v1.0:
 
-- full expression parsing fidelity
+- function and method bodies are still partly source-preserving
+- body semantic checks are not fully AST-driven yet
+- RAII lowering does not yet cover the full intended scope model
+- `maybe<T>` analysis is still lightweight
+- C interop exists as a design goal, but is not deeply modeled
+
+## Post-v1.0 Problems To Defer
+
+- full expression parsing fidelity beyond the supported subset
 - full C interop parsing
 - complete recursion detection
 - deep const inference
 - full `maybe<T>` dominance analysis
-- complex member-subobject constructor argument binding
-
-Stub the hooks now, solve the algorithms later.
+- more advanced member-subobject constructor binding rules
 
 ## Rules That Must Be Represented Early
 
@@ -283,24 +295,10 @@ Even if not fully enforced yet, these need explicit places in the code:
 - RAII cleanup states
 - exact-match interface fulfillment
 
-## Deliverables For This Turn
+## Immediate v1.0 Priorities
 
-This implementation pass should leave the repo with:
-
-- a detailed implementation plan
-- a populated `src/` tree
-- pass-oriented C++ scaffolding
-- clear API seams between frontend, semantics, lowering, and emission
-
-It does not need to be feature-complete yet.
-
-## Next Step After Scaffolding
-
-After the scaffold is in place, the next serious implementation task should be:
-
-1. finish the lexer
-2. parse namespace/class/interface/enum declarations
-3. enforce naming and structural rules
-4. emit minimal `.h` / `.c`
-
-That will prove the architecture before the harder RAII and `maybe<T>` flow analysis work.
+1. Finish the supported body AST and parser slice
+2. Move body checks from text matching to AST-based analysis
+3. Expand method-body lowering beyond current rewriting shortcuts
+4. Harden RAII cleanup planning across scopes
+5. Tighten C interop behavior and tests

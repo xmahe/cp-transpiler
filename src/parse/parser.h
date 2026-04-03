@@ -29,9 +29,12 @@ private:
     ast::TypeRef parse_type_ref_until(const std::vector<std::string>& terminators);
     ast::Parameter parse_parameter();
     std::vector<ast::Parameter> parse_parameter_list();
+    ast::MemberInitializer parse_member_initializer();
+    std::vector<ast::MemberInitializer> parse_member_initializer_list();
     ast::MethodDecl parse_method_signature(bool allow_implementation);
     std::pair<ast::QualifiedName, ast::MethodDecl> parse_function_signature();
-    ast::FieldDecl parse_field(bool is_static);
+    ast::FieldDecl parse_field(bool is_static, bool is_inject);
+    ast::BindDecl parse_bind();
     std::unique_ptr<ast::Expression> parse_expression_until(const std::vector<std::string>& terminators);
     std::unique_ptr<ast::Expression> parse_primary_expression();
     std::unique_ptr<ast::Expression> parse_postfix_expression(std::unique_ptr<ast::Expression> expr);
@@ -52,6 +55,7 @@ private:
     ast::Declaration parse_interface();
     ast::Declaration parse_enum();
     ast::Declaration parse_function();
+    ast::Declaration parse_bind_declaration();
     ast::Declaration parse_raw_c();
     std::vector<ast::EnumMember> parse_enum_members(std::size_t open_index, std::size_t close_index);
 

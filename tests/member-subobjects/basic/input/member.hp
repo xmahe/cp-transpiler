@@ -1,0 +1,18 @@
+namespace Board {
+
+class Inner {
+public:
+    u32 value;
+    fn Construct() -> void;
+    fn Destroy() -> void;
+}
+
+class Outer {
+public:
+    Inner first;
+    Inner second;
+    fn Construct() -> void;
+    fn Destroy() -> void;
+}
+
+}

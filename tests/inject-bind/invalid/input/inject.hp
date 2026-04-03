@@ -1,0 +1,22 @@
+namespace Board {
+
+interface SpiBus {
+    fn Transfer(u8* tx, u8* rx, u32 len) -> i32;
+}
+
+class SpiA implements SpiBus {
+public:
+    fn Construct() -> void;
+    implementation fn Transfer(u8* tx, u8* rx, u32 len) -> i32;
+}
+
+class Device {
+public:
+    inject SpiBus control_spi;
+    inject SpiBus data_spi;
+    fn Construct() -> void;
+}
+
+bind Device.control_spi = SpiA;
+
+}

@@ -11,6 +11,147 @@
 namespace cplus::sema {
 namespace {
 
+const model::ClassDecl* find_class_decl(const model::Program& program, std::string_view name) {
+    for (const auto& decl : program.declarations) {
+        if (const auto* klass = std::get_if<model::ClassDecl>(&decl)) {
+            if (klass->name == name) {
+                return klass;
+            }
+        }
+    }
+    return nullptr;
+}
+
+const model::InterfaceDecl* find_interface_decl(const model::Program& program, std::string_view name) {
+    for (const auto& decl : program.declarations) {
+        if (const auto* iface = std::get_if<model::InterfaceDecl>(&decl)) {
+            if (iface->name == name) {
+                return iface;
+            }
+        }
+    }
+    return nullptr;
+}
+
+const model::BindDecl* find_bind_decl(const model::Program& program, std::string_view owner_type, std::string_view slot_name) {
+    for (const auto& decl : program.declarations) {
+        if (const auto* bind = std::get_if<model::BindDecl>(&decl)) {
+            if (bind->owner_type == owner_type && bind->slot_name == slot_name) {
+                return bind;
+            }
+        }
+    }
+    return nullptr;
+}
+
+bool is_integer_like_type(std::string_view type) {
+    return type == "u8" || type == "u16" || type == "u32" || type == "u64" ||
+        type == "i8" || type == "i16" || type == "i32" || type == "i64";
+}
+
+bool is_float_like_type(std::string_view type) {
+    return type == "f32" || type == "f64";
+}
+
+bool is_integer_literal(std::string_view text) {
+    if (text.empty()) {
+        return false;
+    }
+    for (const char ch : text) {
+        if (!(std::isdigit(static_cast<unsigned char>(ch)) || ch == '_')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool is_float_literal(std::string_view text) {
+    bool saw_dot = false;
+    bool saw_digit = false;
+    for (const char ch : text) {
+        if (std::isdigit(static_cast<unsigned char>(ch)) || ch == '_') {
+            saw_digit = true;
+            continue;
+        }
+        if (ch == '.' && !saw_dot) {
+            saw_dot = true;
+            continue;
+        }
+        return false;
+    }
+    return saw_dot && saw_digit;
+}
+
+std::optional<std::string> infer_initializer_argument_type(
+    std::string_view text,
+    const model::FunctionSignature& constructor,
+    const model::ClassDecl& owner_class) {
+    const auto trimmed = support::trim(text);
+    for (const auto& param : constructor.parameters) {
+        if (param.name == trimmed) {
+            return param.type.spelling;
+        }
+    }
+    for (const auto& field : owner_class.fields) {
+        if (field.name == trimmed) {
+            return field.type.spelling;
+        }
+    }
+    if (is_integer_literal(trimmed)) {
+        return std::string("u32");
+    }
+    if (is_float_literal(trimmed)) {
+        return std::string("f32");
+    }
+    if (trimmed.size() >= 2 && trimmed.front() == '"' && trimmed.back() == '"') {
+        return std::string("u8*");
+    }
+    if (trimmed.size() >= 2 && trimmed.front() == '\'' && trimmed.back() == '\'') {
+        return std::string("u8");
+    }
+    return std::nullopt;
+}
+
+bool types_compatible(std::string_view argument_type, std::string_view parameter_type) {
+    if (argument_type == parameter_type) {
+        return true;
+    }
+    if (is_integer_like_type(argument_type) && is_integer_like_type(parameter_type)) {
+        return true;
+    }
+    if (is_float_like_type(argument_type) && is_float_like_type(parameter_type)) {
+        return true;
+    }
+    return false;
+}
+
+int score_initializer_match(
+    const model::MemberInitializer& initializer,
+    const model::FunctionSignature& target_ctor,
+    const model::FunctionSignature& owner_ctor,
+    const model::ClassDecl& owner_class) {
+    if (target_ctor.parameters.size() != initializer.arguments.size()) {
+        return -1;
+    }
+
+    int score = 0;
+    for (std::size_t index = 0; index < initializer.arguments.size(); ++index) {
+        const auto inferred_type = infer_initializer_argument_type(initializer.arguments[index], owner_ctor, owner_class);
+        if (!inferred_type.has_value()) {
+            continue;
+        }
+        if (!types_compatible(*inferred_type, target_ctor.parameters[index].type.spelling)) {
+            return -1;
+        }
+        if (*inferred_type == target_ctor.parameters[index].type.spelling) {
+            score += 2;
+        } else {
+            score += 1;
+        }
+    }
+    return score;
+}
+
 template <typename T>
 void append_symbol(AnalysisResult& result, const std::string& name, SymbolKind kind, const T& node) {
     if (!result.symbols.add(Symbol{name, kind, node.range})) {
@@ -73,6 +214,7 @@ void Analyzer::validate_program(const model::Program& program, const AnalysisOpt
     for (const auto& decl : program.declarations) {
         validate_declaration(decl, options, result);
     }
+    validate_bindings(program, result);
     if (options.enforce_maybe_flow) {
         validate_maybe_flow(program, options, result);
     }
@@ -96,6 +238,8 @@ void Analyzer::validate_declaration(const model::Declaration& decl, const Analys
                 validate_name_style(node.signature.name, "CamelCase", node.range, result);
                 validate_function_signature(node.signature, options, result);
                 validate_function_body_restrictions(node, result);
+            } else if constexpr (std::is_same_v<T, model::BindDecl>) {
+                (void)node;
             } else if constexpr (std::is_same_v<T, model::RawCDecl>) {
                 (void)node;
             }
@@ -122,6 +266,9 @@ void Analyzer::validate_class(const model::ClassDecl& decl, const AnalysisOption
             validate_name_style(method.name, "CamelCase", method.range, result);
         }
         validate_function_signature(method, options, result);
+        if (!method.member_initializers.empty()) {
+            add_diagnostic(result, model::Severity::Error, method.range, "member initializer list is only allowed on Construct");
+        }
         method_names.insert(method.name);
     }
 
@@ -130,13 +277,191 @@ void Analyzer::validate_class(const model::ClassDecl& decl, const AnalysisOption
             add_diagnostic(result, model::Severity::Error, ctor.range, "constructor must be named Construct");
         }
         validate_function_signature(ctor, options, result);
+
+        std::unordered_set<std::string> initialized_fields;
+        for (const auto& initializer : ctor.member_initializers) {
+            if (!initialized_fields.insert(initializer.field_name).second) {
+                add_diagnostic(result, model::Severity::Error, initializer.range, "duplicate member initializer: " + initializer.field_name);
+                continue;
+            }
+
+            const model::FieldDecl* field_decl = nullptr;
+            for (const auto& field : decl.fields) {
+                if (field.name == initializer.field_name) {
+                    field_decl = &field;
+                    break;
+                }
+            }
+            if (field_decl == nullptr) {
+                add_diagnostic(result, model::Severity::Error, initializer.range, "unknown field in member initializer: " + initializer.field_name);
+                continue;
+            }
+
+            std::string target_type = field_decl->type.spelling;
+            if (field_decl->is_inject) {
+                const auto* bind = find_bind_decl(result.program, decl.name, field_decl->name);
+                if (bind == nullptr) {
+                    continue;
+                }
+                target_type = bind->concrete_type;
+            }
+
+            const auto* target_class = find_class_decl(result.program, target_type);
+            if (target_class == nullptr) {
+                add_diagnostic(result, model::Severity::Error, initializer.range, "member initializer target is not a class type: " + initializer.field_name);
+                continue;
+            }
+
+            int best_score = -1;
+            std::size_t best_count = 0;
+            for (const auto& target_ctor : target_class->constructors) {
+                const int score = score_initializer_match(initializer, target_ctor, ctor, decl);
+                if (score < 0) {
+                    continue;
+                }
+                if (score > best_score) {
+                    best_score = score;
+                    best_count = 1;
+                } else if (score == best_score) {
+                    ++best_count;
+                }
+            }
+            if (best_score < 0) {
+                add_diagnostic(result, model::Severity::Error, initializer.range, "no matching Construct overload for member initializer: " + initializer.field_name);
+            } else if (best_count > 1) {
+                add_diagnostic(result, model::Severity::Error, initializer.range, "ambiguous Construct overload for member initializer: " + initializer.field_name);
+            }
+        }
     }
 
     if (decl.has_destroy && method_names.find("Destroy") == method_names.end()) {
         add_diagnostic(result, model::Severity::Warning, decl.range, "class declares Destroy handling without Destroy method");
     }
 
+    for (const auto& field : decl.fields) {
+        std::string field_type = field.type.spelling;
+        if (field.is_inject) {
+            const auto* bind = find_bind_decl(result.program, decl.name, field.name);
+            if (bind == nullptr) {
+                continue;
+            }
+            field_type = bind->concrete_type;
+        }
+        const auto* field_class = find_class_decl(result.program, field_type);
+        if (field_class == nullptr) {
+            continue;
+        }
+
+        bool has_zero_arg_construct = false;
+        for (const auto& ctor : field_class->constructors) {
+            if (ctor.parameters.empty()) {
+                has_zero_arg_construct = true;
+                break;
+            }
+        }
+
+        if (!field_class->constructors.empty() && !has_zero_arg_construct) {
+            bool explicitly_initialized_somewhere = false;
+            for (const auto& ctor : decl.constructors) {
+                for (const auto& initializer : ctor.member_initializers) {
+                    if (initializer.field_name == field.name) {
+                        explicitly_initialized_somewhere = true;
+                        break;
+                    }
+                }
+                if (explicitly_initialized_somewhere) {
+                    break;
+                }
+            }
+            if (!explicitly_initialized_somewhere) {
+                add_diagnostic(
+                    result,
+                    model::Severity::Error,
+                    field.range,
+                    "class field requires zero-argument Construct or explicit member initializer: " + field_type);
+            }
+        }
+    }
+
     validate_interface_fulfillment(decl, result.program, result);
+}
+
+void Analyzer::validate_bindings(const model::Program& program, AnalysisResult& result) const {
+    std::unordered_map<std::string, const model::BindDecl*> bindings;
+
+    for (const auto& decl : program.declarations) {
+        const auto* bind = std::get_if<model::BindDecl>(&decl);
+        if (bind == nullptr) {
+            continue;
+        }
+
+        const std::string slot_key = bind->owner_type + "." + bind->slot_name;
+        if (!bindings.emplace(slot_key, bind).second) {
+            add_diagnostic(result, model::Severity::Error, bind->range, "duplicate bind for slot: " + slot_key);
+            continue;
+        }
+
+        const auto* owner_class = find_class_decl(program, bind->owner_type);
+        if (owner_class == nullptr) {
+            add_diagnostic(result, model::Severity::Error, bind->range, "bind references unknown owner class: " + bind->owner_type);
+            continue;
+        }
+
+        const model::FieldDecl* slot_field = nullptr;
+        for (const auto& field : owner_class->fields) {
+            if (field.name == bind->slot_name) {
+                slot_field = &field;
+                break;
+            }
+        }
+        if (slot_field == nullptr) {
+            add_diagnostic(result, model::Severity::Error, bind->range, "bind references unknown slot: " + slot_key);
+            continue;
+        }
+        if (!slot_field->is_inject) {
+            add_diagnostic(result, model::Severity::Error, bind->range, "bind target is not an inject slot: " + slot_key);
+            continue;
+        }
+
+        const auto* interface_decl = find_interface_decl(program, slot_field->type.spelling);
+        if (interface_decl == nullptr) {
+            add_diagnostic(result, model::Severity::Error, slot_field->range, "inject slot must use an interface type: " + slot_field->type.spelling);
+            continue;
+        }
+
+        const auto* concrete_class = find_class_decl(program, bind->concrete_type);
+        if (concrete_class == nullptr) {
+            add_diagnostic(result, model::Severity::Error, bind->range, "bind references unknown concrete class: " + bind->concrete_type);
+            continue;
+        }
+
+        bool implements_interface = false;
+        for (const auto& implemented : concrete_class->implements) {
+            if (implemented == interface_decl->name) {
+                implements_interface = true;
+                break;
+            }
+        }
+        if (!implements_interface) {
+            add_diagnostic(result, model::Severity::Error, bind->range, "bound class does not implement interface " + interface_decl->name + ": " + bind->concrete_type);
+        }
+    }
+
+    for (const auto& decl : program.declarations) {
+        const auto* klass = std::get_if<model::ClassDecl>(&decl);
+        if (klass == nullptr) {
+            continue;
+        }
+        for (const auto& field : klass->fields) {
+            if (!field.is_inject) {
+                continue;
+            }
+            const std::string slot_key = klass->name + "." + field.name;
+            if (bindings.find(slot_key) == bindings.end()) {
+                add_diagnostic(result, model::Severity::Error, field.range, "missing bind for inject slot: " + slot_key);
+            }
+        }
+    }
 }
 
 void Analyzer::validate_interface(const model::InterfaceDecl& decl, const AnalysisOptions& options, AnalysisResult& result) const {

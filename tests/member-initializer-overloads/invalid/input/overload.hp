@@ -1,0 +1,16 @@
+namespace Board {
+
+class Child {
+public:
+    u32 value;
+    fn Construct(u32 left, u32 right) -> void;
+    fn Construct(u32 first, u32 second) -> void;
+}
+
+class Parent {
+public:
+    Child child;
+    fn Construct(u32 left, u32 right) -> void;
+}
+
+}

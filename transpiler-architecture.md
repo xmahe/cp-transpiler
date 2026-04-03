@@ -70,8 +70,11 @@ This is very important, because many language features depend on it:
 - out-of-class method definitions in `.cp`
 - free function declarations in `.hp`
 - free function bodies in `.cp`
+- compile-time DI bindings that may live beside the class they configure
 
 Without module pairing, the language becomes awkward very quickly.
+
+In practice, this means a build can provide a small wiring module that binds interface slots to concrete classes for a specific board or firmware variant.
 
 ## What Each Stage Should Care About
 
@@ -139,9 +142,12 @@ Examples of semantic questions:
 
 - does this interface implementation match?
 - does this method definition match a declared class method?
+- are all `inject` slots bound exactly once?
+- does the binding target implement the requested interface?
 - does this enum end in `...N`?
 - is this name style allowed?
 - is `maybe<T>.value()` being used unsafely?
+- does this constructor need explicit member initializers for non-default-constructible subobjects?
 
 This stage is the “does this make sense?” stage.
 
@@ -164,6 +170,13 @@ Examples:
 - `reading` becomes `self->reading`
 - `Reset()` becomes `Board___Thermometer___Reset(self)`
 - `logger.Flush()` becomes `Board___Logger___Flush(&self->logger)`
+- `inject` slots become concrete fields chosen by `bind`
+- constructor member initializers become explicit ordered `Construct` calls in generated C
+
+For compile-time DI, lowering should resolve slot bindings before emission so the generated C only sees concrete field types.
+That keeps the backend simple and avoids runtime interface machinery.
+
+For constructor member initializers, lowering should emit member construction in declaration order and destroy members in reverse order when cleanup is needed.
 
 This is the most important translation stage.
 

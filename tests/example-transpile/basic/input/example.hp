@@ -63,6 +63,7 @@ public:
     u32 read_count;
     u32 reset_count;
 
+    fn Construct() -> void;
     fn Construct(u32 device_id, u32 sample_rate_hz) -> void;
     fn Destroy() -> void;
 

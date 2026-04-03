@@ -1,0 +1,1 @@
+error: /Users/magnus/c+/tests/member-subobjects/invalid/input/member.hp:10:5: class field requires zero-argument Construct or explicit member initializer: Inner

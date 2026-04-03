@@ -41,6 +41,7 @@ private:
     void validate_enum(const model::EnumDecl& decl, AnalysisResult& result) const;
     void validate_function_signature(const model::FunctionSignature& signature, const AnalysisOptions& options, AnalysisResult& result) const;
     void validate_type(const model::TypeRef& type, const AnalysisOptions& options, AnalysisResult& result) const;
+    void validate_bindings(const model::Program& program, AnalysisResult& result) const;
     void validate_interface_fulfillment(const model::ClassDecl& decl, const model::Program& program, AnalysisResult& result) const;
     void validate_maybe_flow(const model::Program& program, const AnalysisOptions& options, AnalysisResult& result) const;
     void validate_function_body_restrictions(const model::FunctionDecl& decl, AnalysisResult& result) const;

@@ -45,6 +45,7 @@ The stages roughly see it like this:
 - `parse`: "this is a namespace, containing a class and a function definition"
 - `sema`: "the out-of-class `Thermometer::Reset` matches the declared method"
 - `lower`: "methods become plain C functions, `reading` becomes `self->reading`"
+- `lower`: "`inject` slots are replaced by concrete bound types, and constructor member initializers become explicit `Construct` calls"
 - `emit`: write something like:
 
 ```c
@@ -89,6 +90,7 @@ Current example:
 
 - `demo.hp` and `demo.cp` with the same stem are treated as one logical module
 - the driver reads both, parses both, merges them, then emits one `demo.h` and one `demo.c`
+- `inject` and `bind` are resolved during analysis and lowering so interface slots become concrete fields in generated C
 
 If you want to understand the whole compiler flow first, start here.
 
@@ -192,6 +194,8 @@ This is where the compiler starts understanding meaning.
 Examples:
 
 - interface fulfillment
+- `inject` slot binding checks
+- constructor member-initializer validation
 - enum naming rules
 - style rules
 - `maybe<T>` restrictions
@@ -217,6 +221,7 @@ Examples of lowering:
 - field access becomes `self->field`
 - same-class calls become `Class___Method(self, ...)`
 - object method calls become `OtherClass___Method(&object, ...)`
+- constructor member initializers become ordered `Construct` calls on the generated struct fields
 
 Example:
 
@@ -286,7 +291,8 @@ The likely work split is:
    Print the lowered cleanup code.
 
 5. `tests`
-   Add one small direct test and one realistic end-to-end example.
+   Add one small CTest case and one realistic end-to-end example.
+   Shell wrappers are optional convenience helpers now, not the main test path.
 
 That is the normal way to grow this compiler.
 
@@ -307,18 +313,30 @@ When you are unsure where something belongs, ask:
 
 ## Current Reality
 
-The codebase is still a work in progress.
+The codebase is now a real working pre-v1.0 compiler, not just a scaffold.
 
-Important current limitations:
+What is already real:
+
+- pass-oriented `lex` / `parse` / `sema` / `lower` / `emit`
+- paired `.hp` / `.cp` module handling
+- namespace lowering
+- interfaces plus compile-time `inject` / `bind`
+- constructor member initializers
+- several RAII lowering slices
+- meaningful end-to-end coverage through CTest
+
+Important remaining limitations before v1.0:
 
 - body handling is still partly source-preserving, not fully AST-driven
-- RAII cleanup lowering is not fully implemented yet
+- RAII cleanup lowering is only partly implemented
 - C interop is important, but not yet deeply modeled in `sema`
+- `maybe<T>` checking is still lighter than a full control-flow proof
+- some emitted bodies still rely on simple rewriting instead of full expression lowering
 
 So think of the current compiler as:
 
-- a real scaffold
-- with several real lowering features already working
-- but not yet a complete production compiler
+- a real transpiler with meaningful language support already working
+- strong enough for guarded experiments and fixture-driven development
+- not yet a complete v1.0 compiler
 
 That is fine for where the project is.

@@ -42,4 +42,6 @@ fi
 
 bash "${ROOT}/tests/run_field_access_rewriting_gap.sh"
 bash "${ROOT}/tests/run_out_of_class_method_calls_gap.sh"
+bash "${ROOT}/tests/run_member_initializers_gap.sh"
+bash "${ROOT}/tests/run_member_initializers_invalid_gap.sh"
 echo "gap tests passed"

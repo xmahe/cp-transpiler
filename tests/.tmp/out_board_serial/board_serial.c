@@ -2,22 +2,6 @@
 
 static u32 Board___SerialPort____instance_count;
 
-void Board___SerialDriver___Start(Board___SerialDriver* self) {
-    /* empty */
-}
-
-void Board___SerialDriver___Stop(Board___SerialDriver* self) {
-    /* empty */
-}
-
-i32 Board___SerialDriver___Send(Board___SerialDriver* self, u8* data, u32 length) {
-    /* empty */
-}
-
-void Board___SerialDriver___Flush(Board___SerialDriver* self) {
-    /* empty */
-}
-
 void Board___SerialPort___Destroy(Board___SerialPort* self) {
     /* empty */
 }

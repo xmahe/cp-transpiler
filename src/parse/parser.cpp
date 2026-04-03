@@ -157,6 +157,53 @@ std::vector<ast::Parameter> Parser::parse_parameter_list() {
     return params;
 }
 
+ast::MemberInitializer Parser::parse_member_initializer() {
+    const std::size_t start = current_index_;
+    ast::MemberInitializer initializer;
+    if (!is_identifier_like(current())) {
+        diagnostics_.error("expected field name in member initializer", current().span, source_path_.string());
+        return initializer;
+    }
+    initializer.field_name = current().lexeme;
+    ++current_index_;
+    if (!(check(lex::TokenKind::Punctuation) && current().lexeme == "(")) {
+        diagnostics_.error("expected '(' after member initializer field name", current().span, source_path_.string());
+        return initializer;
+    }
+    ++current_index_;
+    while (!eof() && !(check(lex::TokenKind::Punctuation) && current().lexeme == ")")) {
+        const std::size_t arg_begin = current_index_;
+        while (!eof() &&
+               !(check(lex::TokenKind::Punctuation) && (current().lexeme == "," || current().lexeme == ")"))) {
+            ++current_index_;
+        }
+        if (arg_begin < current_index_) {
+            initializer.arguments.push_back(support::trim(slice(tokens_[arg_begin].span.begin.offset, tokens_[current_index_ - 1].span.end.offset)));
+        } else {
+            initializer.arguments.push_back("");
+        }
+        if (check(lex::TokenKind::Punctuation) && current().lexeme == ",") {
+            ++current_index_;
+        }
+    }
+    consume(lex::TokenKind::Punctuation, "expected ')' after member initializer arguments");
+    initializer.span = span_from(start, current_index_ == 0 ? start : current_index_ - 1);
+    return initializer;
+}
+
+std::vector<ast::MemberInitializer> Parser::parse_member_initializer_list() {
+    std::vector<ast::MemberInitializer> initializers;
+    consume(lex::TokenKind::Punctuation, "expected ':' before member initializer list");
+    while (!eof()) {
+        initializers.push_back(parse_member_initializer());
+        if (!(check(lex::TokenKind::Punctuation) && current().lexeme == ",")) {
+            break;
+        }
+        ++current_index_;
+    }
+    return initializers;
+}
+
 ast::MethodDecl Parser::parse_method_signature(bool allow_implementation) {
     const std::size_t start = current_index_;
     ast::MethodDecl decl;
@@ -188,7 +235,10 @@ ast::MethodDecl Parser::parse_method_signature(bool allow_implementation) {
         return decl;
     }
     ++current_index_;
-    decl.return_type = parse_type_ref_until({";", "{"});
+    decl.return_type = parse_type_ref_until({";", "{", ":"});
+    if (check(lex::TokenKind::Punctuation) && current().lexeme == ":") {
+        decl.member_initializers = parse_member_initializer_list();
+    }
     if (check(lex::TokenKind::Punctuation) && current().lexeme == ";") {
         ++current_index_;
     }
@@ -224,7 +274,10 @@ std::pair<ast::QualifiedName, ast::MethodDecl> Parser::parse_function_signature(
         return {name, decl};
     }
     ++current_index_;
-    decl.return_type = parse_type_ref_until({";", "{"});
+    decl.return_type = parse_type_ref_until({";", "{", ":"});
+    if (check(lex::TokenKind::Punctuation) && current().lexeme == ":") {
+        decl.member_initializers = parse_member_initializer_list();
+    }
     if (check(lex::TokenKind::Punctuation) && current().lexeme == ";") {
         ++current_index_;
     }
@@ -232,11 +285,15 @@ std::pair<ast::QualifiedName, ast::MethodDecl> Parser::parse_function_signature(
     return {std::move(name), std::move(decl)};
 }
 
-ast::FieldDecl Parser::parse_field(bool is_static) {
+ast::FieldDecl Parser::parse_field(bool is_static, bool is_inject) {
     const std::size_t start = current_index_;
     ast::FieldDecl field;
     field.is_static = is_static;
+    field.is_inject = is_inject;
     if (is_static && check(lex::TokenKind::KeywordStatic)) {
+        ++current_index_;
+    }
+    if (is_inject && check(lex::TokenKind::KeywordInject)) {
         ++current_index_;
     }
 
@@ -258,6 +315,35 @@ ast::FieldDecl Parser::parse_field(bool is_static) {
     }
     field.span = span_from(start, current_index_ == 0 ? start : current_index_ - 1);
     return field;
+}
+
+ast::BindDecl Parser::parse_bind() {
+    const std::size_t start = current_index_;
+    consume(lex::TokenKind::KeywordBind, "expected bind");
+    ast::BindDecl decl;
+    decl.owner_type = parse_qualified_name();
+    if (!(check(lex::TokenKind::Punctuation) && current().lexeme == ".")) {
+        diagnostics_.error("expected '.' after bind owner type", current().span, source_path_.string());
+        return decl;
+    }
+    ++current_index_;
+    if (!is_identifier_like(current())) {
+        diagnostics_.error("expected slot name in bind declaration", current().span, source_path_.string());
+        return decl;
+    }
+    decl.slot_name = current().lexeme;
+    ++current_index_;
+    if (!(check(lex::TokenKind::Punctuation) && current().lexeme == "=")) {
+        diagnostics_.error("expected '=' in bind declaration", current().span, source_path_.string());
+        return decl;
+    }
+    ++current_index_;
+    decl.concrete_type = parse_qualified_name();
+    if (check(lex::TokenKind::Punctuation) && current().lexeme == ";") {
+        ++current_index_;
+    }
+    decl.span = span_from(start, current_index_ == 0 ? start : current_index_ - 1);
+    return decl;
 }
 
 std::unique_ptr<ast::Expression> Parser::parse_primary_expression() {
@@ -612,6 +698,8 @@ std::vector<ast::Declaration> Parser::parse_block_declarations() {
             decls.push_back(parse_enum());
         } else if (check(lex::TokenKind::KeywordFn)) {
             decls.push_back(parse_function());
+        } else if (check(lex::TokenKind::KeywordBind)) {
+            decls.push_back(parse_bind_declaration());
         } else {
             decls.push_back(parse_raw_c());
         }
@@ -640,6 +728,7 @@ void Parser::parse_class_body(ast::ClassDecl& decl) {
         }
 
         const bool is_static = check(lex::TokenKind::KeywordStatic);
+        const bool is_inject = check(lex::TokenKind::KeywordInject);
         const bool is_method = is_static
             ? (current_index_ + 1 < tokens_.size() && (tokens_[current_index_ + 1].kind == lex::TokenKind::KeywordFn || tokens_[current_index_ + 1].kind == lex::TokenKind::KeywordImplementation))
             : (check(lex::TokenKind::KeywordFn) || check(lex::TokenKind::KeywordImplementation));
@@ -658,7 +747,7 @@ void Parser::parse_class_body(ast::ClassDecl& decl) {
             continue;
         }
 
-        auto field = parse_field(is_static);
+        auto field = parse_field(is_static, is_inject);
         if (field.is_static) {
             decl.static_fields.push_back(field);
         } else {
@@ -830,6 +919,10 @@ ast::Declaration Parser::parse_function() {
     return ast::FunctionDecl{name, std::move(signature), std::move(body), nullptr, tokens_[start].span};
 }
 
+ast::Declaration Parser::parse_bind_declaration() {
+    return parse_bind();
+}
+
 ast::Declaration Parser::parse_raw_c() {
     const std::size_t start = current_index_;
     while (!eof() && !(check(lex::TokenKind::Punctuation) && current().lexeme == ";")) {
@@ -867,6 +960,10 @@ ast::Module Parser::parse_module() {
         }
         if (check(lex::TokenKind::KeywordFn)) {
             module.declarations.push_back(parse_function());
+            continue;
+        }
+        if (check(lex::TokenKind::KeywordBind)) {
+            module.declarations.push_back(parse_bind_declaration());
             continue;
         }
         if (check(lex::TokenKind::EndOfFile)) {

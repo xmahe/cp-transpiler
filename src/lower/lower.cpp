@@ -55,13 +55,22 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
     std::unordered_set<std::string> seen_maybe_types;
     std::unordered_map<std::string, std::string> class_name_map;
     std::unordered_set<std::string> destroyable_class_names;
+    std::unordered_set<std::string> default_constructible_class_names;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> inject_bindings;
 
     for (const auto& decl : analysis.program.declarations) {
         if (const auto* klass = std::get_if<cplus::model::ClassDecl>(&decl)) {
             class_name_map.emplace(klass->name, cplus::sema::NameMangler::mangle(klass->namespace_path, klass->name));
+            for (const auto& ctor : klass->constructors) {
+                if (ctor.parameters.empty()) {
+                    default_constructible_class_names.insert(klass->name);
+                }
+            }
             if (klass->has_destroy) {
                 destroyable_class_names.insert(klass->name);
             }
+        } else if (const auto* bind = std::get_if<cplus::model::BindDecl>(&decl)) {
+            inject_bindings[bind->owner_type][bind->slot_name] = bind->concrete_type;
         }
     }
 
@@ -101,16 +110,16 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                             ensure_maybe(param.type);
                         }
                     }
-                    const auto lowered_class = lower_class(node, class_name_map);
+                    const auto lowered_class = lower_class(node, class_name_map, inject_bindings);
                     module.structs.push_back(lowered_class);
-                    for (const auto& global : lower_static_fields(node, class_name_map)) {
+                    for (const auto& global : lower_static_fields(node, class_name_map, inject_bindings)) {
                         module.globals.push_back(global);
                     }
                     for (const auto& method : node.methods) {
-                        module.functions.push_back(lower_method(method, lowered_class.name, node.fields, method_names, class_name_map, destroyable_class_names));
+                        module.functions.push_back(lower_method(method, lowered_class.name, node.name, node.fields, method_names, class_name_map, inject_bindings, default_constructible_class_names, destroyable_class_names));
                     }
                     for (const auto& ctor : node.constructors) {
-                        module.functions.push_back(lower_method(ctor, lowered_class.name, node.fields, method_names, class_name_map, destroyable_class_names));
+                        module.functions.push_back(lower_method(ctor, lowered_class.name, node.name, node.fields, method_names, class_name_map, inject_bindings, default_constructible_class_names, destroyable_class_names));
                     }
                 } else if constexpr (std::is_same_v<T, cplus::model::EnumDecl>) {
                     module.enums.push_back(lower_enum(node));
@@ -127,16 +136,6 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                             ensure_maybe(param.type);
                         }
                     }
-                    for (const auto& method : node.methods) {
-                        module.functions.push_back(
-                            lower_method(
-                                method,
-                                cplus::sema::NameMangler::mangle(node.namespace_path, node.name),
-                                {},
-                                {},
-                                class_name_map,
-                                destroyable_class_names));
-                    }
                 } else if constexpr (std::is_same_v<T, cplus::model::NamespaceDecl>) {
                     (void)node;
                 } else if constexpr (std::is_same_v<T, cplus::model::RawCDecl>) {
@@ -149,24 +148,38 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
     return module;
 }
 
-CStruct Lowerer::lower_class(const cplus::model::ClassDecl& decl, const std::unordered_map<std::string, std::string>& class_name_map) const {
+CStruct Lowerer::lower_class(
+    const cplus::model::ClassDecl& decl,
+    const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) const {
     CStruct result;
     result.name = cplus::sema::NameMangler::mangle(decl.namespace_path, decl.name);
     result.fields.reserve(decl.fields.size());
     for (const auto& field : decl.fields) {
-        result.fields.push_back(CField{field.name, to_c_type(field.type, class_name_map), field.is_private_intent, false});
+        auto resolved_field = field;
+        if (const auto resolved_type = resolve_field_class_name(field, decl.name, inject_bindings); !resolved_type.empty()) {
+            resolved_field.type.spelling = resolved_type;
+        }
+        result.fields.push_back(CField{field.name, to_c_type(resolved_field.type, class_name_map), field.is_private_intent, false});
     }
     return result;
 }
 
-std::vector<CGlobal> Lowerer::lower_static_fields(const cplus::model::ClassDecl& decl, const std::unordered_map<std::string, std::string>& class_name_map) const {
+std::vector<CGlobal> Lowerer::lower_static_fields(
+    const cplus::model::ClassDecl& decl,
+    const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) const {
     std::vector<CGlobal> globals;
     globals.reserve(decl.static_fields.size());
     const auto class_name = cplus::sema::NameMangler::mangle(decl.namespace_path, decl.name);
     for (const auto& field : decl.static_fields) {
+        auto resolved_field = field;
+        if (const auto resolved_type = resolve_field_class_name(field, decl.name, inject_bindings); !resolved_type.empty()) {
+            resolved_field.type.spelling = resolved_type;
+        }
         globals.push_back(CGlobal{
             class_name + "___" + field.name,
-            to_c_type(field.type, class_name_map),
+            to_c_type(resolved_field.type, class_name_map),
             CLinkage::Internal,
             {},
         });
@@ -199,9 +212,12 @@ CFunction Lowerer::lower_function(
 CFunction Lowerer::lower_method(
     const cplus::model::FunctionSignature& sig,
     std::string_view class_name,
+    std::string_view source_class_name,
     const std::vector<cplus::model::FieldDecl>& instance_fields,
     const std::unordered_set<std::string>& method_names,
     const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
+    const std::unordered_set<std::string>& default_constructible_class_names,
     const std::unordered_set<std::string>& destroyable_class_names) const {
     CFunction result;
     result.name = std::string(class_name) + "___" + sig.name;
@@ -212,13 +228,60 @@ CFunction Lowerer::lower_method(
     for (const auto& param : sig.parameters) {
         result.parameters.push_back(CParameter{param.name, to_c_type(param.type, class_name_map)});
     }
+    std::string method_body_source = sig.body_source;
+    if (sig.name == "Construct") {
+        std::vector<std::string> construct_lines;
+        std::unordered_map<std::string, const cplus::model::MemberInitializer*> initializer_map;
+        for (const auto& initializer : sig.member_initializers) {
+            initializer_map[initializer.field_name] = &initializer;
+        }
+        for (const auto& field : instance_fields) {
+            std::string field_type_name = resolve_field_class_name(field, source_class_name, inject_bindings);
+            if (field_type_name.empty()) {
+                field_type_name = field.type.spelling;
+            }
+            const auto mangled_it = class_name_map.find(field_type_name);
+            if (mangled_it == class_name_map.end()) {
+                continue;
+            }
+
+            const auto init_it = initializer_map.find(field.name);
+            if (init_it != initializer_map.end()) {
+                std::ostringstream line;
+                line << mangled_it->second << "___Construct(&self->" << field.name;
+                for (const auto& arg : init_it->second->arguments) {
+                    if (!arg.empty()) {
+                        line << ", " << arg;
+                    }
+                }
+                line << ");";
+                construct_lines.push_back(line.str());
+                continue;
+            }
+
+            if (default_constructible_class_names.find(field_type_name) != default_constructible_class_names.end()) {
+                construct_lines.push_back(mangled_it->second + "___Construct(&self->" + field.name + ");");
+            }
+        }
+        method_body_source = prepend_lines_to_body(std::move(construct_lines), method_body_source);
+    }
+    method_body_source = rewrite_returns_with_raii(
+        method_body_source,
+        result.return_type,
+        class_name_map,
+        destroyable_class_names,
+        sig.name == "Destroy"
+            ? member_destroy_calls(instance_fields, source_class_name, class_name_map, inject_bindings, destroyable_class_names)
+            : std::vector<std::string>{});
     result.body_lines = lower_method_body_lines(
-        rewrite_returns_with_raii(sig.body_source, result.return_type, class_name_map, destroyable_class_names),
+        method_body_source,
         sig,
         instance_fields,
+        source_class_name,
         class_name,
         method_names,
-        class_name_map);
+        class_name_map,
+        inject_bindings);
     result.linkage = (sig.is_static || sig.is_private) ? CLinkage::Internal : CLinkage::External;
     return result;
 }
@@ -308,9 +371,11 @@ std::vector<std::string> Lowerer::lower_method_body_lines(
     std::string_view body_source,
     const cplus::model::FunctionSignature& sig,
     const std::vector<cplus::model::FieldDecl>& instance_fields,
+    std::string_view source_class_name,
     std::string_view class_name,
     const std::unordered_set<std::string>& method_names,
-    const std::unordered_map<std::string, std::string>& class_name_map) {
+    const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) {
     if (sig.is_static || body_source.empty()) {
         return lower_body_lines(body_source);
     }
@@ -322,7 +387,11 @@ std::vector<std::string> Lowerer::lower_method_body_lines(
     }
     std::unordered_map<std::string, std::string> field_object_types;
     for (const auto& field : instance_fields) {
-        const auto it = class_name_map.find(field.type.spelling);
+        std::string resolved_type_name = resolve_field_class_name(field, source_class_name, inject_bindings);
+        if (resolved_type_name.empty()) {
+            resolved_type_name = field.type.spelling;
+        }
+        const auto it = class_name_map.find(resolved_type_name);
         if (it != class_name_map.end()) {
             field_object_types.emplace(field.name, it->second);
         }
@@ -590,12 +659,92 @@ std::unordered_map<std::string, std::string> Lowerer::collect_local_object_types
     return local_types;
 }
 
+std::vector<std::string> Lowerer::member_construct_calls(
+    const std::vector<cplus::model::FieldDecl>& instance_fields,
+    std::string_view source_class_name,
+    const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
+    const std::unordered_set<std::string>& default_constructible_class_names) {
+    std::vector<std::string> calls;
+    for (const auto& field : instance_fields) {
+        std::string field_type_name = resolve_field_class_name(field, source_class_name, inject_bindings);
+        if (field_type_name.empty()) {
+            field_type_name = field.type.spelling;
+        }
+        if (default_constructible_class_names.find(field_type_name) == default_constructible_class_names.end()) {
+            continue;
+        }
+        const auto mangled_it = class_name_map.find(field_type_name);
+        if (mangled_it == class_name_map.end()) {
+            continue;
+        }
+        calls.push_back(mangled_it->second + "___Construct(&self->" + field.name + ");");
+    }
+    return calls;
+}
+
+std::vector<std::string> Lowerer::member_destroy_calls(
+    const std::vector<cplus::model::FieldDecl>& instance_fields,
+    std::string_view source_class_name,
+    const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
+    const std::unordered_set<std::string>& destroyable_class_names) {
+    std::vector<std::string> calls;
+    for (auto it = instance_fields.rbegin(); it != instance_fields.rend(); ++it) {
+        std::string field_type_name = resolve_field_class_name(*it, source_class_name, inject_bindings);
+        if (field_type_name.empty()) {
+            field_type_name = it->type.spelling;
+        }
+        if (destroyable_class_names.find(field_type_name) == destroyable_class_names.end()) {
+            continue;
+        }
+        const auto mangled_it = class_name_map.find(field_type_name);
+        if (mangled_it == class_name_map.end()) {
+            continue;
+        }
+        calls.push_back(mangled_it->second + "___Destroy(&self->" + it->name + ");");
+    }
+    return calls;
+}
+
+std::string Lowerer::prepend_lines_to_body(std::vector<std::string> lines, std::string_view body_source) {
+    if (lines.empty()) {
+        return std::string(body_source);
+    }
+    std::string rewritten;
+    for (const auto& line : lines) {
+        rewritten.append(line);
+        rewritten.push_back('\n');
+    }
+    rewritten.append(body_source);
+    return rewritten;
+}
+
+std::string Lowerer::resolve_field_class_name(
+    const cplus::model::FieldDecl& field,
+    std::string_view source_class_name,
+    const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) {
+    if (!field.is_inject) {
+        return {};
+    }
+    const auto owner_it = inject_bindings.find(std::string(source_class_name));
+    if (owner_it == inject_bindings.end()) {
+        return {};
+    }
+    const auto slot_it = owner_it->second.find(field.name);
+    if (slot_it == owner_it->second.end()) {
+        return {};
+    }
+    return slot_it->second;
+}
+
 std::string Lowerer::rewrite_returns_with_raii(
     std::string_view body_source,
     const CType& return_type,
     const std::unordered_map<std::string, std::string>& class_name_map,
-    const std::unordered_set<std::string>& destroyable_class_names) {
-    if (body_source.empty() || destroyable_class_names.empty()) {
+    const std::unordered_set<std::string>& destroyable_class_names,
+    std::vector<std::string> extra_cleanup_lines) {
+    if (body_source.empty() || (destroyable_class_names.empty() && extra_cleanup_lines.empty())) {
         return std::string(body_source);
     }
 
@@ -678,7 +827,7 @@ std::string Lowerer::rewrite_returns_with_raii(
         at_statement_start = false;
     }
 
-    bool needs_cleanup = !locals.empty();
+    bool needs_cleanup = !locals.empty() || !extra_cleanup_lines.empty();
     for (const auto& site : returns) {
         if (!site.active_local_indexes.empty()) {
             needs_cleanup = true;
@@ -820,12 +969,17 @@ std::string Lowerer::rewrite_returns_with_raii(
         rewritten.append(body_source.substr(cursor));
     }
 
-    if (const auto it = locals_by_scope.find(0); it != locals_by_scope.end()) {
+    if (const auto it = locals_by_scope.find(0); it != locals_by_scope.end() || !extra_cleanup_lines.empty()) {
         const auto trimmed_rewritten = support::trim(rewritten);
-        std::vector<std::size_t> outer_active_set = it->second;
+        std::vector<std::size_t> outer_active_set;
+        if (it != locals_by_scope.end()) {
+            outer_active_set = it->second;
+        }
         std::string outer_cleanup_label;
-        if (const auto label_it = label_for_set.find(outer_active_set); label_it != label_for_set.end()) {
-            outer_cleanup_label = label_it->second;
+        if (!outer_active_set.empty()) {
+            if (const auto label_it = label_for_set.find(outer_active_set); label_it != label_for_set.end()) {
+                outer_cleanup_label = label_it->second;
+            }
         }
 
         if (!rewritten.empty() && rewritten.back() != '\n') {
@@ -843,12 +997,18 @@ std::string Lowerer::rewrite_returns_with_raii(
                    !support::ends_with(trimmed_rewritten, "return;") &&
                    !support::ends_with(trimmed_rewritten, "return __cplus_ret;") &&
                    scopes_terminated_by_tail_return.find(0) == scopes_terminated_by_tail_return.end()) {
-            for (auto local_it = it->second.rbegin(); local_it != it->second.rend(); ++local_it) {
-                const auto& local = locals[*local_it];
-                rewritten.append(local.type_name);
-                rewritten.append("___Destroy(&");
-                rewritten.append(local.name);
-                rewritten.append(");\n");
+            if (it != locals_by_scope.end()) {
+                for (auto local_it = it->second.rbegin(); local_it != it->second.rend(); ++local_it) {
+                    const auto& local = locals[*local_it];
+                    rewritten.append(local.type_name);
+                    rewritten.append("___Destroy(&");
+                    rewritten.append(local.name);
+                    rewritten.append(");\n");
+                }
+            }
+            for (const auto& line : extra_cleanup_lines) {
+                rewritten.append(line);
+                rewritten.push_back('\n');
             }
         }
     }
@@ -866,6 +1026,10 @@ std::string Lowerer::rewrite_returns_with_raii(
             rewritten.append("___Destroy(&");
             rewritten.append(local.name);
             rewritten.append(");\n");
+        }
+        for (const auto& line : extra_cleanup_lines) {
+            rewritten.append(line);
+            rewritten.push_back('\n');
         }
         if (return_type.spelling == "void") {
             rewritten.append("return;\n");

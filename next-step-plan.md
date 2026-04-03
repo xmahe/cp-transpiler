@@ -1,34 +1,32 @@
 # Next Step Plan
 
-## Goal
+## Already Done
 
-Move the `c+` transpiler from declaration-only parsing toward real file support by parsing function and method bodies structurally instead of treating them as raw text.
+- pass-oriented compiler skeleton
+- lexer, parser, sema, lowering, and emission pipeline
+- lowered IR
+- namespace, class, interface, enum, and `maybe<T>` support
+- compile-time DI with `inject` / `bind`
+- member initializer support
+- several RAII slices
+- CMake + CTest + optional GoogleTest
 
-Right now the compiler can validate and lower a narrow declaration slice. The next meaningful milestone is:
+## Next Step
 
-- parse statements
-- parse expressions
-- attach them to function and method bodies
-- move semantic checks away from text matching
-- prepare real lowering of bodies into C IR
+Move body handling further away from source-preserving text and toward a real AST-driven implementation.
 
-## Why This Is The Next Step
+The current highest-value slice is:
 
-Without body parsing, the compiler cannot honestly handle real source files.
+- complete the supported statement/expression AST
+- attach that structure consistently to function and method bodies
+- move body semantic checks away from text matching
+- prepare fuller lowering of bodies into C IR
 
-Current limitations:
-
-- function bodies are mostly opaque strings
-- forbidden-Construct checks are text-based
-- `maybe<T>` safety checks are text-based
-- RAII lowering cannot be implemented cleanly
-- method calls and expression rewriting do not really exist yet
-
-So the next step is not “more declarations”. It is body structure.
+This is still the main bridge between the current vertical slice and a credible v1.0 transpiler.
 
 ## Implementation Order
 
-### Phase 1: AST Expansion
+### Phase 1: AST Expansion `[in progress]`
 
 Add syntax-tree nodes for:
 
@@ -60,7 +58,7 @@ Minimum expression set:
 
 Keep this small. The goal is not to parse all of C.
 
-### Phase 2: Parser Entry
+### Phase 2: Parser Entry `[in progress]`
 
 Teach the parser to parse function and method bodies into the new AST.
 
@@ -71,7 +69,7 @@ Initial target:
 
 The parser should still reject forbidden constructs, but now through syntax rather than text scanning where possible.
 
-### Phase 3: Semantic Hooks
+### Phase 3: Semantic Hooks `[todo]`
 
 Move these checks onto the body AST:
 
@@ -84,7 +82,7 @@ Move these checks onto the body AST:
 
 The current text-based checks can remain temporarily as a fallback, but the goal is to replace them.
 
-### Phase 4: Lowering Hooks
+### Phase 4: Lowering Hooks `[todo]`
 
 Once function bodies exist as AST:
 
@@ -96,7 +94,7 @@ Once function bodies exist as AST:
 
 This is where real transpilation starts.
 
-### Phase 5: Tests
+### Phase 5: Tests `[todo]`
 
 Add tests for:
 
@@ -106,6 +104,16 @@ Add tests for:
 - forbidden body constructs
 - future RAII cleanup lowering
 - future `maybe<T>` control-flow proof
+
+## v1.0 Remainder
+
+After this body-focused slice, the main v1.0 remainder is:
+
+- stronger AST-driven RAII cleanup planning
+- stronger `maybe<T>` analysis
+- clearer and better-tested C interop behavior
+- more realistic end-to-end examples
+- final status/documentation cleanup around the supported feature boundary
 
 ## Agent Split
 
@@ -165,10 +173,10 @@ These can wait one more round:
 
 ## Short Version
 
-The next step is:
+The next step is still:
 
-- build a real body AST
-- parse bodies
-- then move semantics and lowering onto that structure
+- finish the real body AST
+- parse bodies more fully
+- move semantics and lowering onto that structure
 
-That is the bridge from “language sketch that emits some C” to “real transpiler”.
+That is still the cleanest route from the current vertical slice to v1.0.

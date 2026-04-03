@@ -1,0 +1,1 @@
+error: /Users/magnus/c+/tests/inject-bind/invalid/input/inject.hp:16:5: missing bind for inject slot: Device.data_spi

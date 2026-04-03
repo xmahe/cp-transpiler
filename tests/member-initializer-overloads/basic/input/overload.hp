@@ -1,0 +1,18 @@
+namespace Board {
+
+class Child {
+public:
+    u32 value;
+    fn Construct(u32 value) -> void;
+    fn Construct(f32 value) -> void;
+    fn Destroy() -> void;
+}
+
+class Parent {
+public:
+    Child child;
+    fn Construct(u32 value) -> void;
+    fn Destroy() -> void;
+}
+
+}

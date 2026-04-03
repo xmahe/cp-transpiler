@@ -3,46 +3,6 @@
 static u32 Board___Logger___instance_count;
 static u32 Board___DeviceController___instance_count;
 
-i32 Board___SpiBus___Transfer(Board___SpiBus* self, u8* tx, u8* rx, u32 len) {
-    /* empty */
-}
-
-i32 Board___SpiBus___Lock(Board___SpiBus* self) {
-    /* empty */
-}
-
-i32 Board___SpiBus___Unlock(Board___SpiBus* self) {
-    /* empty */
-}
-
-i32 Board___SpiBus___Flush(Board___SpiBus* self) {
-    /* empty */
-}
-
-i32 Board___SensorDriver___Read(Board___SensorDriver* self, u8* buffer, u32 len) {
-    /* empty */
-}
-
-i32 Board___SensorDriver___Calibrate(Board___SensorDriver* self) {
-    /* empty */
-}
-
-i32 Board___SensorDriver___Reset(Board___SensorDriver* self) {
-    /* empty */
-}
-
-i32 Board___PowerControl___Enable(Board___PowerControl* self) {
-    /* empty */
-}
-
-i32 Board___PowerControl___Disable(Board___PowerControl* self) {
-    /* empty */
-}
-
-i32 Board___PowerControl___IsEnabled(Board___PowerControl* self) {
-    /* empty */
-}
-
 void Board___Logger___Destroy(Board___Logger* self) {
     /* empty */
 }
@@ -131,6 +91,10 @@ i32 Board___DeviceController___IsReady(Board___DeviceController* self) {
     /* empty */
 }
 
+void Board___DeviceController___Construct(Board___DeviceController* self) {
+    /* empty */
+}
+
 void Board___DeviceController___Construct(Board___DeviceController* self, u32 device_id, u32 sample_rate_hz) {
     /* empty */
 }
@@ -156,7 +120,9 @@ i32 Board___DeviceRepository___PrimeLogger(Board___DeviceRepository* self) {
 }
 
 void Board___DeviceRepository___Construct(Board___DeviceRepository* self, u32 sample_rate_hz) {
-    /* empty */
+    Board___DeviceController___Construct(&self->primary);
+    Board___DeviceController___Construct(&self->secondary);
+    Board___Logger___Construct(&self->logger);
 }
 
 u32 Board___ComputeChecksum(u8* data, u32 len) {

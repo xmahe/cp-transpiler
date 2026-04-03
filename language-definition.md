@@ -264,6 +264,56 @@ Important rules:
 
 This is meant for embedded “pick one concrete driver at compile time” use cases.
 
+## Compile-Time Dependency Injection
+
+`c+` uses `inject` and `bind` to wire interface dependencies at compile time.
+
+Think of this as compile-time assembly wiring, not runtime dependency injection.
+The source says what the dependency slots are, and a separate build-time binding says which concrete class fills each slot.
+
+The source shape is:
+
+- a class declares an `inject` slot with an interface type
+- a `bind` statement chooses the concrete class for that slot
+- the transpiler rewrites the slot to the bound concrete type during lowering
+
+That means you can write code against an interface, while still generating plain C with concrete field types and direct calls.
+
+Example:
+
+```c
+interface SpiBus {
+    fn Transfer(u8* tx, u8* rx, u32 len) -> i32;
+}
+
+class Device {
+public:
+    inject SpiBus control_spi;
+    inject SpiBus data_spi;
+}
+
+bind Device.control_spi = SpiA;
+bind Device.data_spi = SpiB;
+```
+
+The important detail is that bindings are by slot, not just by interface type.
+So one class can hold two `SpiBus` dependencies and map them to two different implementations.
+
+This is still compile-time only:
+
+- no runtime interface objects
+- no vtables
+- no dynamic dispatch
+
+The slot name matters.
+That is what lets you bind two `SpiBus` dependencies to two different implementations in the same class.
+
+In practice this gives you a simple board-wiring model:
+
+- one build config can bind `Device.control_spi` to `SpiA`
+- another build config can bind `Device.control_spi` to `SpiB`
+- the source code using `control_spi` does not need to change
+
 ## Constructors and Destructors
 
 `c+` uses fixed lifetime names:
@@ -297,6 +347,40 @@ Logger___Construct(&logger);
 Important v0 rule:
 
 - `Construct` cannot fail
+
+Constructor member initializers are allowed for non-default-constructible member subobjects.
+
+Syntax example:
+
+```c
+class Device {
+public:
+    Motor motor;
+    Sensor sensor;
+    fn Construct(u32 speed) -> void : motor(speed), sensor();
+}
+```
+
+This means:
+
+- construct `motor` with `speed`
+- construct `sensor` with its default constructor
+- then run the body of `Device.Construct`
+
+Example:
+
+```c
+class Device {
+public:
+    Motor motor;
+    fn Construct(u32 speed) -> void : motor(speed);
+}
+```
+
+This is the `c+` way to say:
+
+- build `motor` as part of `Device` construction
+- keep the final generated C concrete and explicit
 
 For MCU code that is fine, because the intended use is mostly boot-time construction.
 If something is impossible, the model is assert/fail-fast, not exception-like recovery.

@@ -1,0 +1,1 @@
+error: /Users/magnus/c+/tests/member-initializer-overloads/invalid/input/overload.cp:11:53: ambiguous Construct overload for member initializer: child

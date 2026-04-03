@@ -33,6 +33,10 @@ cplus::model::Parameter to_model_parameter(const cplus::ast::Parameter& param, c
     return {param.name, to_model_type(param.type), to_source_range(param.span, file)};
 }
 
+cplus::model::MemberInitializer to_model_member_initializer(const cplus::ast::MemberInitializer& initializer, const std::filesystem::path& file) {
+    return {initializer.field_name, initializer.arguments, to_source_range(initializer.span, file)};
+}
+
 cplus::model::FunctionSignature to_model_signature(const cplus::ast::MethodDecl& method, const std::filesystem::path& file) {
     cplus::model::FunctionSignature sig;
     sig.name = method.name;
@@ -43,6 +47,9 @@ cplus::model::FunctionSignature to_model_signature(const cplus::ast::MethodDecl&
     for (const auto& param : method.parameters) {
         sig.parameters.push_back(to_model_parameter(param, file));
     }
+    for (const auto& initializer : method.member_initializers) {
+        sig.member_initializers.push_back(to_model_member_initializer(initializer, file));
+    }
     sig.range = to_source_range(method.span, file);
     return sig;
 }
@@ -52,6 +59,7 @@ cplus::model::FieldDecl to_model_field(const cplus::ast::FieldDecl& field, const
         field.name,
         to_model_type(field.type),
         field.is_static,
+        field.is_inject,
         field.is_private_intent,
         to_source_range(field.span, file),
     };
@@ -137,6 +145,7 @@ void merge_method_definition(
             if (signatures_match(signature, definition)) {
                 if (signature.body_source.empty()) {
                     signature.body_source = definition.body_source;
+                    signature.member_initializers = definition.member_initializers;
                     signature.range = definition.range;
                 }
                 return true;
@@ -224,6 +233,14 @@ void ast_to_model_program(
                     out.declarations.push_back(std::move(model_decl));
                 } else if constexpr (std::is_same_v<T, cplus::ast::RawCDecl>) {
                     out.declarations.push_back(cplus::model::RawCDecl{node.text, to_source_range(node.span, source_path)});
+                } else if constexpr (std::is_same_v<T, cplus::ast::BindDecl>) {
+                    cplus::model::BindDecl model_decl;
+                    model_decl.owner_type = node.owner_type.parts.empty() ? "" : node.owner_type.parts.back();
+                    model_decl.slot_name = node.slot_name;
+                    model_decl.concrete_type = node.concrete_type.parts.empty() ? "" : node.concrete_type.parts.back();
+                    model_decl.namespace_path = namespace_path;
+                    model_decl.range = to_source_range(node.span, source_path);
+                    out.declarations.push_back(std::move(model_decl));
                 }
             },
             decl);
@@ -319,6 +336,14 @@ void ast_to_model_program_group(
                         }
                     } else if constexpr (std::is_same_v<T, cplus::ast::RawCDecl>) {
                         out.declarations.push_back(cplus::model::RawCDecl{node.text, to_source_range(node.span, source_path)});
+                    } else if constexpr (std::is_same_v<T, cplus::ast::BindDecl>) {
+                        cplus::model::BindDecl model_decl;
+                        model_decl.owner_type = node.owner_type.parts.empty() ? "" : node.owner_type.parts.back();
+                        model_decl.slot_name = node.slot_name;
+                        model_decl.concrete_type = node.concrete_type.parts.empty() ? "" : node.concrete_type.parts.back();
+                        model_decl.namespace_path = namespace_path;
+                        model_decl.range = to_source_range(node.span, source_path);
+                        out.declarations.push_back(std::move(model_decl));
                     }
                 },
                 decl);

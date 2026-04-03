@@ -1,0 +1,2 @@
+error: /Users/magnus/c+/tests/member-initializers/invalid/input/member_init.hp:11:5: class field requires zero-argument Construct or explicit member initializer: Child
+error: /Users/magnus/c+/tests/member-initializers/invalid/input/member_init.hp:12:5: class field requires zero-argument Construct or explicit member initializer: Child

@@ -17,8 +17,14 @@ public:
     CModule lower(const cplus::sema::AnalysisResult& analysis) const;
 
 private:
-    CStruct lower_class(const cplus::model::ClassDecl& decl, const std::unordered_map<std::string, std::string>& class_name_map) const;
-    std::vector<CGlobal> lower_static_fields(const cplus::model::ClassDecl& decl, const std::unordered_map<std::string, std::string>& class_name_map) const;
+    CStruct lower_class(
+        const cplus::model::ClassDecl& decl,
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) const;
+    std::vector<CGlobal> lower_static_fields(
+        const cplus::model::ClassDecl& decl,
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) const;
     CEnum lower_enum(const cplus::model::EnumDecl& decl) const;
     CFunction lower_function(
         const cplus::model::FunctionDecl& decl,
@@ -27,9 +33,12 @@ private:
     CFunction lower_method(
         const cplus::model::FunctionSignature& sig,
         std::string_view class_name,
+        std::string_view source_class_name,
         const std::vector<cplus::model::FieldDecl>& instance_fields,
         const std::unordered_set<std::string>& method_names,
         const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
+        const std::unordered_set<std::string>& default_constructible_class_names,
         const std::unordered_set<std::string>& destroyable_class_names) const;
     CMaybeType lower_maybe(std::string_view spelling, const std::unordered_map<std::string, std::string>& class_name_map) const;
     static CType to_c_type(const cplus::model::TypeRef& type, const std::unordered_map<std::string, std::string>& class_name_map);
@@ -42,9 +51,11 @@ private:
         std::string_view body_source,
         const cplus::model::FunctionSignature& sig,
         const std::vector<cplus::model::FieldDecl>& instance_fields,
+        std::string_view source_class_name,
         std::string_view class_name,
         const std::unordered_set<std::string>& method_names,
-        const std::unordered_map<std::string, std::string>& class_name_map);
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings);
     static std::string rewrite_method_body(
         std::string_view body_source,
         std::string_view class_name,
@@ -57,11 +68,31 @@ private:
     static std::unordered_map<std::string, std::string> collect_local_object_types(
         std::string_view body_source,
         const std::unordered_map<std::string, std::string>& class_name_map);
+    static std::string prepend_lines_to_body(
+        std::vector<std::string> lines,
+        std::string_view body_source);
+    static std::string resolve_field_class_name(
+        const cplus::model::FieldDecl& field,
+        std::string_view source_class_name,
+        const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings);
+    static std::vector<std::string> member_construct_calls(
+        const std::vector<cplus::model::FieldDecl>& instance_fields,
+        std::string_view source_class_name,
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
+        const std::unordered_set<std::string>& default_constructible_class_names);
+    static std::vector<std::string> member_destroy_calls(
+        const std::vector<cplus::model::FieldDecl>& instance_fields,
+        std::string_view source_class_name,
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
+        const std::unordered_set<std::string>& destroyable_class_names);
     static std::string rewrite_returns_with_raii(
         std::string_view body_source,
         const CType& return_type,
         const std::unordered_map<std::string, std::string>& class_name_map,
-        const std::unordered_set<std::string>& destroyable_class_names);
+        const std::unordered_set<std::string>& destroyable_class_names,
+        std::vector<std::string> extra_cleanup_lines = {});
 };
 
 } // namespace cplus::lower

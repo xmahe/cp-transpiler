@@ -1,0 +1,14 @@
+namespace Board {
+
+class Inner {
+public:
+    fn Construct(u32 value) -> void;
+}
+
+class Outer {
+public:
+    Inner inner;
+    fn Construct() -> void;
+}
+
+}

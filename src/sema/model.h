@@ -40,10 +40,17 @@ struct Parameter {
     SourceRange range{};
 };
 
+struct MemberInitializer {
+    std::string field_name;
+    std::vector<std::string> arguments;
+    SourceRange range{};
+};
+
 struct FunctionSignature {
     std::string name;
     TypeRef return_type;
     std::vector<Parameter> parameters;
+    std::vector<MemberInitializer> member_initializers;
     std::string body_source;
     bool is_static = false;
     bool is_implementation = false;
@@ -55,7 +62,16 @@ struct FieldDecl {
     std::string name;
     TypeRef type;
     bool is_static = false;
+    bool is_inject = false;
     bool is_private_intent = false;
+    SourceRange range{};
+};
+
+struct BindDecl {
+    std::string owner_type;
+    std::string slot_name;
+    std::string concrete_type;
+    std::vector<std::string> namespace_path;
     SourceRange range{};
 };
 
@@ -104,7 +120,7 @@ struct NamespaceDecl {
     SourceRange range{};
 };
 
-using Declaration = std::variant<NamespaceDecl, EnumDecl, InterfaceDecl, ClassDecl, FunctionDecl, RawCDecl>;
+using Declaration = std::variant<NamespaceDecl, EnumDecl, InterfaceDecl, ClassDecl, FunctionDecl, RawCDecl, BindDecl>;
 
 struct Program {
     std::vector<Declaration> declarations;

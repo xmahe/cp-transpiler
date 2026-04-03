@@ -19,6 +19,8 @@ enum class TokenKind {
     KeywordEnum,
     KeywordImplements,
     KeywordImplementation,
+    KeywordInject,
+    KeywordBind,
     KeywordPublic,
     KeywordPrivate,
     KeywordStatic,

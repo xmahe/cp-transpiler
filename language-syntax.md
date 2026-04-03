@@ -168,6 +168,83 @@ Rules:
 - implemented methods must use `implementation`
 - method names must match exactly
 
+## Compile-Time Dependency Injection
+
+`inject` declares an interface-typed slot inside a class:
+
+```c
+class Device {
+public:
+    inject SpiBus control_spi;
+    inject SpiBus data_spi;
+}
+```
+
+`bind` chooses the concrete implementation for that slot:
+
+```c
+bind Device.control_spi = SpiA;
+bind Device.data_spi = SpiB;
+```
+
+Rules:
+
+- binding is by slot, not just by interface type
+- multiple slots of the same interface are allowed
+- the transpiler rewrites the slot to the bound concrete type
+
+This is the compile-time way to say: “this class depends on an interface, but this build uses that specific implementation.”
+
+Example with two `SpiBus` dependencies:
+
+```c
+class Device {
+public:
+    inject SpiBus control_spi;
+    inject SpiBus log_spi;
+}
+
+bind Device.control_spi = SpiA;
+bind Device.log_spi = SpiB;
+```
+
+That keeps the source written against `SpiBus`, but the generated C uses concrete fields and direct calls.
+
+## Constructor Member Initializers
+
+Constructor declarations can end with a member-initializer list:
+
+```c
+class Device {
+public:
+    Motor motor;
+    Sensor sensor;
+    fn Construct(u32 speed) -> void : motor(speed), sensor();
+}
+```
+
+Rules:
+
+- the initializer list only belongs on `Construct`
+- each item is `field_name(args)`
+- the transpiler lowers the initializer list into ordered constructor calls for the generated struct fields
+- it is intended for non-default-constructible member subobjects
+
+This is the `c+` answer to “this member cannot be default-constructed, so initialize it here instead.”
+
+Example:
+
+```c
+class Device {
+public:
+    Motor motor;
+    Sensor sensor;
+    fn Construct(u32 speed) -> void : motor(speed), sensor();
+}
+```
+
+That means `motor` is built with `speed`, `sensor` is default-constructed, and then the body of `Construct` runs.
+
 ## Methods
 
 Method declarations:
@@ -217,6 +294,8 @@ That means:
 
 `Construct` may be overloaded.
 `Destroy` may not.
+
+If a member field cannot be default-constructed, the constructor should initialize it explicitly with a member initializer.
 
 ## Fields
 

@@ -28,6 +28,8 @@ bool is_keyword(std::string_view lexeme, TokenKind& kind_out) {
         {"enum", TokenKind::KeywordEnum},
         {"implements", TokenKind::KeywordImplements},
         {"implementation", TokenKind::KeywordImplementation},
+        {"inject", TokenKind::KeywordInject},
+        {"bind", TokenKind::KeywordBind},
         {"public", TokenKind::KeywordPublic},
         {"private", TokenKind::KeywordPrivate},
         {"static", TokenKind::KeywordStatic},

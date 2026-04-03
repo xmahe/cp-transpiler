@@ -16,6 +16,7 @@ Current layout:
 - `run_field_access_rewriting_gap.sh` is a snapshot regression for `self->field` rewriting in method bodies
 - `run_out_of_class_method_calls_gap.sh` checks same-class call rewriting in paired out-of-class method bodies
 - `run_out_of_class_object_method_calls_gap.sh` checks method-call rewriting on object fields and local objects
+- `run_raii_return.sh` checks first-slice RAII cleanup insertion on explicit `return`
 - `run_out_of_class_object_method_calls_gap.sh` is a snapshot regression for object-field and local-object method-call lowering
 
 Paired-module rule:

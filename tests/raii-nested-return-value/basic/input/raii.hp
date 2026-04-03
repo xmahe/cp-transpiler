@@ -1,0 +1,10 @@
+namespace Board {
+
+class Logger {
+public:
+    fn Destroy() -> void;
+}
+
+fn ReadValue() -> u32;
+
+}

@@ -6,11 +6,46 @@
 
 #include <cctype>
 #include <algorithm>
+#include <map>
 #include <sstream>
 #include <unordered_set>
 #include <utility>
 
 namespace cplus::lower {
+
+namespace {
+
+struct LocalLifetime {
+    std::string name;
+    std::string type_name;
+    std::size_t token_index = 0;
+    int scope_id = 0;
+};
+
+struct ReturnSite {
+    std::size_t token_index = 0;
+    std::size_t statement_end_index = 0;
+    int scope_id = 0;
+    std::optional<std::string> expression_text;
+    std::vector<std::size_t> active_local_indexes;
+};
+
+bool is_scope_visible(const int local_scope, int current_scope, const std::unordered_map<int, int>& parents) {
+    int scope = current_scope;
+    while (true) {
+        if (scope == local_scope) {
+            return true;
+        }
+        const auto it = parents.find(scope);
+        if (it == parents.end() || it->second == scope) {
+            break;
+        }
+        scope = it->second;
+    }
+    return false;
+}
+
+} // namespace
 
 CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
     CModule module;
@@ -19,10 +54,14 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
     module.includes.push_back(module.header_name);
     std::unordered_set<std::string> seen_maybe_types;
     std::unordered_map<std::string, std::string> class_name_map;
+    std::unordered_set<std::string> destroyable_class_names;
 
     for (const auto& decl : analysis.program.declarations) {
         if (const auto* klass = std::get_if<cplus::model::ClassDecl>(&decl)) {
             class_name_map.emplace(klass->name, cplus::sema::NameMangler::mangle(klass->namespace_path, klass->name));
+            if (klass->has_destroy) {
+                destroyable_class_names.insert(klass->name);
+            }
         }
     }
 
@@ -68,10 +107,10 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                         module.globals.push_back(global);
                     }
                     for (const auto& method : node.methods) {
-                        module.functions.push_back(lower_method(method, lowered_class.name, node.fields, method_names, class_name_map));
+                        module.functions.push_back(lower_method(method, lowered_class.name, node.fields, method_names, class_name_map, destroyable_class_names));
                     }
                     for (const auto& ctor : node.constructors) {
-                        module.functions.push_back(lower_method(ctor, lowered_class.name, node.fields, method_names, class_name_map));
+                        module.functions.push_back(lower_method(ctor, lowered_class.name, node.fields, method_names, class_name_map, destroyable_class_names));
                     }
                 } else if constexpr (std::is_same_v<T, cplus::model::EnumDecl>) {
                     module.enums.push_back(lower_enum(node));
@@ -80,7 +119,7 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                     for (const auto& param : node.signature.parameters) {
                         ensure_maybe(param.type);
                     }
-                    module.functions.push_back(lower_function(node, class_name_map));
+                    module.functions.push_back(lower_function(node, class_name_map, destroyable_class_names));
                 } else if constexpr (std::is_same_v<T, cplus::model::InterfaceDecl>) {
                     for (const auto& method : node.methods) {
                         ensure_maybe(method.return_type);
@@ -95,7 +134,8 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                                 cplus::sema::NameMangler::mangle(node.namespace_path, node.name),
                                 {},
                                 {},
-                                class_name_map));
+                                class_name_map,
+                                destroyable_class_names));
                     }
                 } else if constexpr (std::is_same_v<T, cplus::model::NamespaceDecl>) {
                     (void)node;
@@ -138,14 +178,20 @@ CEnum Lowerer::lower_enum(const cplus::model::EnumDecl& decl) const {
     return CEnum{cplus::sema::NameMangler::mangle(decl.namespace_path, decl.name), decl.members};
 }
 
-CFunction Lowerer::lower_function(const cplus::model::FunctionDecl& decl, const std::unordered_map<std::string, std::string>& class_name_map) const {
+CFunction Lowerer::lower_function(
+    const cplus::model::FunctionDecl& decl,
+    const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_set<std::string>& destroyable_class_names) const {
     CFunction result;
     result.name = cplus::sema::NameMangler::mangle(decl.namespace_path, decl.signature.name);
     result.return_type = to_c_type(decl.signature.return_type, class_name_map);
     for (const auto& param : decl.signature.parameters) {
         result.parameters.push_back(CParameter{param.name, to_c_type(param.type, class_name_map)});
     }
-    result.body_lines = lower_body_lines(decl.body_source);
+    const auto raii_body = rewrite_returns_with_raii(decl.body_source, result.return_type, class_name_map, destroyable_class_names);
+    const auto local_names = collect_local_names(raii_body);
+    const auto local_object_types = collect_local_object_types(raii_body, class_name_map);
+    result.body_lines = lower_body_lines(rewrite_method_body(raii_body, "", {}, local_names, {}, {}, local_object_types));
     result.linkage = decl.signature.is_static ? CLinkage::Internal : CLinkage::External;
     return result;
 }
@@ -155,7 +201,8 @@ CFunction Lowerer::lower_method(
     std::string_view class_name,
     const std::vector<cplus::model::FieldDecl>& instance_fields,
     const std::unordered_set<std::string>& method_names,
-    const std::unordered_map<std::string, std::string>& class_name_map) const {
+    const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_set<std::string>& destroyable_class_names) const {
     CFunction result;
     result.name = std::string(class_name) + "___" + sig.name;
     result.return_type = to_c_type(sig.return_type, class_name_map);
@@ -165,7 +212,13 @@ CFunction Lowerer::lower_method(
     for (const auto& param : sig.parameters) {
         result.parameters.push_back(CParameter{param.name, to_c_type(param.type, class_name_map)});
     }
-    result.body_lines = lower_method_body_lines(sig.body_source, sig, instance_fields, class_name, method_names, class_name_map);
+    result.body_lines = lower_method_body_lines(
+        rewrite_returns_with_raii(sig.body_source, result.return_type, class_name_map, destroyable_class_names),
+        sig,
+        instance_fields,
+        class_name,
+        method_names,
+        class_name_map);
     result.linkage = (sig.is_static || sig.is_private) ? CLinkage::Internal : CLinkage::External;
     return result;
 }
@@ -535,6 +588,293 @@ std::unordered_map<std::string, std::string> Lowerer::collect_local_object_types
     }
 
     return local_types;
+}
+
+std::string Lowerer::rewrite_returns_with_raii(
+    std::string_view body_source,
+    const CType& return_type,
+    const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_set<std::string>& destroyable_class_names) {
+    if (body_source.empty() || destroyable_class_names.empty()) {
+        return std::string(body_source);
+    }
+
+    const auto tokens = cplus::lex::lex_source(std::string(body_source), "<raii-body>");
+    std::vector<LocalLifetime> locals;
+    std::vector<ReturnSite> returns;
+    std::unordered_map<int, int> scope_parent;
+    std::unordered_map<int, std::size_t> scope_close_token_index;
+    std::vector<int> scope_stack{0};
+    scope_parent.emplace(0, 0);
+    int next_scope_id = 1;
+
+    bool at_statement_start = true;
+    for (std::size_t i = 0; i < tokens.size(); ++i) {
+        const auto& token = tokens[i];
+        if (token.kind == cplus::lex::TokenKind::EndOfFile) {
+            break;
+        }
+
+        if (token.kind == cplus::lex::TokenKind::Punctuation && token.lexeme == "{") {
+            const int parent = scope_stack.back();
+            scope_stack.push_back(next_scope_id);
+            scope_parent.emplace(next_scope_id, parent);
+            ++next_scope_id;
+            at_statement_start = true;
+            continue;
+        }
+        if (token.kind == cplus::lex::TokenKind::Punctuation && token.lexeme == "}") {
+            scope_close_token_index[scope_stack.back()] = i;
+            if (scope_stack.size() > 1) {
+                scope_stack.pop_back();
+            }
+            at_statement_start = true;
+            continue;
+        }
+        if (token.kind == cplus::lex::TokenKind::Punctuation && token.lexeme == ";") {
+            at_statement_start = true;
+            continue;
+        }
+
+        if (token.kind == cplus::lex::TokenKind::KeywordReturn) {
+            std::size_t end = i + 1;
+            while (end < tokens.size() && !(tokens[end].kind == cplus::lex::TokenKind::Punctuation && tokens[end].lexeme == ";")) {
+                ++end;
+            }
+            ReturnSite site;
+            site.token_index = i;
+            site.statement_end_index = end;
+            site.scope_id = scope_stack.back();
+            if (i + 1 < end) {
+                site.expression_text = std::string(body_source.substr(tokens[i + 1].span.begin.offset, tokens[end - 1].span.end.offset - tokens[i + 1].span.begin.offset));
+            }
+            for (std::size_t local_index = 0; local_index < locals.size(); ++local_index) {
+                const auto& local = locals[local_index];
+                if (local.token_index < i && is_scope_visible(local.scope_id, site.scope_id, scope_parent)) {
+                    site.active_local_indexes.push_back(local_index);
+                }
+            }
+            returns.push_back(std::move(site));
+            at_statement_start = false;
+            continue;
+        }
+
+        if (at_statement_start) {
+            std::size_t start = i;
+            if (tokens[start].kind == cplus::lex::TokenKind::KeywordStatic) {
+                ++start;
+            }
+            if (start + 1 < tokens.size() &&
+                tokens[start].kind == cplus::lex::TokenKind::Identifier &&
+                tokens[start + 1].kind == cplus::lex::TokenKind::Identifier &&
+                destroyable_class_names.find(tokens[start].lexeme) != destroyable_class_names.end()) {
+                const auto it = class_name_map.find(tokens[start].lexeme);
+                if (it != class_name_map.end()) {
+                    locals.push_back(LocalLifetime{tokens[start + 1].lexeme, it->second, i, scope_stack.back()});
+                }
+            }
+        }
+
+        at_statement_start = false;
+    }
+
+    bool needs_cleanup = !locals.empty();
+    for (const auto& site : returns) {
+        if (!site.active_local_indexes.empty()) {
+            needs_cleanup = true;
+            break;
+        }
+    }
+    if (!needs_cleanup) {
+        return std::string(body_source);
+    }
+
+    scope_close_token_index[0] = tokens.size() - 1;
+
+    auto is_tail_return_for_scope = [&](const ReturnSite& site, int scope_id) {
+        const auto close_it = scope_close_token_index.find(scope_id);
+        if (close_it == scope_close_token_index.end()) {
+            return false;
+        }
+        for (std::size_t token_index = site.statement_end_index + 1; token_index < close_it->second; ++token_index) {
+            const auto& trailing = tokens[token_index];
+            if (trailing.kind == cplus::lex::TokenKind::EndOfFile) {
+                break;
+            }
+            if (!(trailing.kind == cplus::lex::TokenKind::Punctuation && trailing.lexeme == "}")) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    std::unordered_set<int> scopes_terminated_by_tail_return;
+    for (const auto& site : returns) {
+        int scope_id = site.scope_id;
+        while (true) {
+            if (is_tail_return_for_scope(site, scope_id)) {
+                scopes_terminated_by_tail_return.insert(scope_id);
+            } else {
+                break;
+            }
+            const auto parent_it = scope_parent.find(scope_id);
+            if (parent_it == scope_parent.end() || parent_it->second == scope_id) {
+                break;
+            }
+            scope_id = parent_it->second;
+        }
+    }
+
+    std::map<std::vector<std::size_t>, std::string> label_for_set;
+    std::unordered_map<int, std::vector<std::size_t>> locals_by_scope;
+    int label_counter = 0;
+    for (std::size_t local_index = 0; local_index < locals.size(); ++local_index) {
+        locals_by_scope[locals[local_index].scope_id].push_back(local_index);
+    }
+    for (const auto& site : returns) {
+        if (site.active_local_indexes.empty()) {
+            continue;
+        }
+        if (label_for_set.find(site.active_local_indexes) == label_for_set.end()) {
+            label_for_set.emplace(site.active_local_indexes, "__cleanup_" + std::to_string(label_counter++));
+        }
+    }
+
+    std::string rewritten;
+    if (return_type.spelling != "void") {
+        rewritten.append(return_type.spelling);
+        rewritten.append(" __cplus_ret;\n");
+    }
+
+    std::size_t cursor = 0;
+    std::size_t return_site_index = 0;
+    std::vector<int> rewrite_scope_stack{0};
+    int rewrite_next_scope_id = 1;
+    for (std::size_t i = 0; i < tokens.size(); ++i) {
+        const auto& token = tokens[i];
+        if (token.kind == cplus::lex::TokenKind::EndOfFile) {
+            break;
+        }
+
+        if (return_site_index < returns.size() && returns[return_site_index].token_index == i) {
+            const auto& site = returns[return_site_index];
+            if (token.span.begin.offset > cursor) {
+                rewritten.append(body_source.substr(cursor, token.span.begin.offset - cursor));
+            }
+
+            if (site.active_local_indexes.empty()) {
+                rewritten.append("return");
+                if (site.expression_text.has_value()) {
+                    rewritten.push_back(' ');
+                    rewritten.append(*site.expression_text);
+                }
+                rewritten.append(";");
+            } else {
+                if (return_type.spelling != "void" && site.expression_text.has_value()) {
+                    rewritten.append("__cplus_ret = ");
+                    rewritten.append(*site.expression_text);
+                    rewritten.append(";\n");
+                }
+                rewritten.append("goto ");
+                rewritten.append(label_for_set.at(site.active_local_indexes));
+                rewritten.append(";");
+            }
+
+            cursor = tokens[site.statement_end_index].span.end.offset;
+            i = site.statement_end_index;
+            ++return_site_index;
+            continue;
+        }
+
+        if (token.kind == cplus::lex::TokenKind::Punctuation && token.lexeme == "{") {
+            rewrite_scope_stack.push_back(rewrite_next_scope_id++);
+            continue;
+        }
+
+        if (token.kind == cplus::lex::TokenKind::Punctuation && token.lexeme == "}") {
+            if (token.span.begin.offset > cursor) {
+                rewritten.append(body_source.substr(cursor, token.span.begin.offset - cursor));
+            }
+            const int closing_scope = rewrite_scope_stack.back();
+            if (scopes_terminated_by_tail_return.find(closing_scope) == scopes_terminated_by_tail_return.end()) {
+                if (const auto it = locals_by_scope.find(closing_scope); it != locals_by_scope.end()) {
+                    for (auto local_it = it->second.rbegin(); local_it != it->second.rend(); ++local_it) {
+                        const auto& local = locals[*local_it];
+                        rewritten.append(local.type_name);
+                        rewritten.append("___Destroy(&");
+                        rewritten.append(local.name);
+                        rewritten.append(");\n");
+                    }
+                }
+            }
+            rewritten.append(token.lexeme);
+            cursor = token.span.end.offset;
+            if (rewrite_scope_stack.size() > 1) {
+                rewrite_scope_stack.pop_back();
+            }
+            continue;
+        }
+    }
+
+    if (cursor < body_source.size()) {
+        rewritten.append(body_source.substr(cursor));
+    }
+
+    if (const auto it = locals_by_scope.find(0); it != locals_by_scope.end()) {
+        const auto trimmed_rewritten = support::trim(rewritten);
+        std::vector<std::size_t> outer_active_set = it->second;
+        std::string outer_cleanup_label;
+        if (const auto label_it = label_for_set.find(outer_active_set); label_it != label_for_set.end()) {
+            outer_cleanup_label = label_it->second;
+        }
+
+        if (!rewritten.empty() && rewritten.back() != '\n') {
+            rewritten.push_back('\n');
+        }
+        if (!outer_cleanup_label.empty() &&
+            !support::ends_with(trimmed_rewritten, "goto " + outer_cleanup_label + ";") &&
+            !support::ends_with(trimmed_rewritten, "return;") &&
+            !support::ends_with(trimmed_rewritten, "return __cplus_ret;") &&
+            scopes_terminated_by_tail_return.find(0) == scopes_terminated_by_tail_return.end()) {
+            rewritten.append("goto ");
+            rewritten.append(outer_cleanup_label);
+            rewritten.append(";\n");
+        } else if (outer_cleanup_label.empty() &&
+                   !support::ends_with(trimmed_rewritten, "return;") &&
+                   !support::ends_with(trimmed_rewritten, "return __cplus_ret;") &&
+                   scopes_terminated_by_tail_return.find(0) == scopes_terminated_by_tail_return.end()) {
+            for (auto local_it = it->second.rbegin(); local_it != it->second.rend(); ++local_it) {
+                const auto& local = locals[*local_it];
+                rewritten.append(local.type_name);
+                rewritten.append("___Destroy(&");
+                rewritten.append(local.name);
+                rewritten.append(");\n");
+            }
+        }
+    }
+
+    if (!rewritten.empty() && rewritten.back() != '\n') {
+        rewritten.push_back('\n');
+    }
+
+    for (const auto& [active_set, label] : label_for_set) {
+        rewritten.append(label);
+        rewritten.append(":\n");
+        for (auto it = active_set.rbegin(); it != active_set.rend(); ++it) {
+            const auto& local = locals[*it];
+            rewritten.append(local.type_name);
+            rewritten.append("___Destroy(&");
+            rewritten.append(local.name);
+            rewritten.append(");\n");
+        }
+        if (return_type.spelling == "void") {
+            rewritten.append("return;\n");
+        } else {
+            rewritten.append("return __cplus_ret;\n");
+        }
+    }
+
+    return rewritten;
 }
 
 } // namespace cplus::lower

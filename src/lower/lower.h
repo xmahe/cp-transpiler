@@ -5,6 +5,7 @@
 
 #include <string_view>
 #include <string>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -19,13 +20,17 @@ private:
     CStruct lower_class(const cplus::model::ClassDecl& decl, const std::unordered_map<std::string, std::string>& class_name_map) const;
     std::vector<CGlobal> lower_static_fields(const cplus::model::ClassDecl& decl, const std::unordered_map<std::string, std::string>& class_name_map) const;
     CEnum lower_enum(const cplus::model::EnumDecl& decl) const;
-    CFunction lower_function(const cplus::model::FunctionDecl& decl, const std::unordered_map<std::string, std::string>& class_name_map) const;
+    CFunction lower_function(
+        const cplus::model::FunctionDecl& decl,
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_set<std::string>& destroyable_class_names) const;
     CFunction lower_method(
         const cplus::model::FunctionSignature& sig,
         std::string_view class_name,
         const std::vector<cplus::model::FieldDecl>& instance_fields,
         const std::unordered_set<std::string>& method_names,
-        const std::unordered_map<std::string, std::string>& class_name_map) const;
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_set<std::string>& destroyable_class_names) const;
     CMaybeType lower_maybe(std::string_view spelling, const std::unordered_map<std::string, std::string>& class_name_map) const;
     static CType to_c_type(const cplus::model::TypeRef& type, const std::unordered_map<std::string, std::string>& class_name_map);
     static bool is_maybe_type(std::string_view spelling);
@@ -52,6 +57,11 @@ private:
     static std::unordered_map<std::string, std::string> collect_local_object_types(
         std::string_view body_source,
         const std::unordered_map<std::string, std::string>& class_name_map);
+    static std::string rewrite_returns_with_raii(
+        std::string_view body_source,
+        const CType& return_type,
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_set<std::string>& destroyable_class_names);
 };
 
 } // namespace cplus::lower

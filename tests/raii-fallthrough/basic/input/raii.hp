@@ -1,0 +1,15 @@
+namespace Board {
+
+class Logger {
+public:
+    fn Destroy() -> void;
+}
+
+class Sensor {
+public:
+    fn Destroy() -> void;
+}
+
+fn Boot() -> void;
+
+}

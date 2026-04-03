@@ -8,7 +8,7 @@ u32 Board___Thermometer___Read(Board___Thermometer* self) {
     return self->reading;
 }
 
-void Board___Thermometer___construct(Board___Thermometer* self, u32 initial_reading) {
+void Board___Thermometer___Construct(Board___Thermometer* self, u32 initial_reading) {
     self->reading = initial_reading;
 }
 

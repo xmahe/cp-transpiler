@@ -1,6 +1,6 @@
 namespace Board {
 
-fn Thermometer::construct(u32 initial_reading) -> void {
+fn Thermometer::Construct(u32 initial_reading) -> void {
     reading = initial_reading;
 }
 

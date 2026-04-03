@@ -3,7 +3,7 @@ namespace Board {
 class Thermometer {
 public:
     u32 reading;
-    fn construct(u32 initial_reading) -> void;
+    fn Construct(u32 initial_reading) -> void;
     fn Reset() -> void;
     fn Calibrate(u32 offset) -> void;
     fn Apply(u32 offset) -> void;

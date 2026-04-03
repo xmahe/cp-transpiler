@@ -268,16 +268,16 @@ This is meant for embedded “pick one concrete driver at compile time” use ca
 
 `c+` uses fixed lifetime names:
 
-- `construct`
-- `destroy`
+- `Construct`
+- `Destroy`
 
 Example:
 
 ```c
 class Logger {
 public:
-    fn construct() -> void;
-    fn destroy() -> void;
+    fn Construct() -> void;
+    fn Destroy() -> void;
 }
 ```
 
@@ -291,12 +291,12 @@ conceptually lowers to:
 
 ```c
 Logger logger;
-Logger___construct(&logger);
+Logger___Construct(&logger);
 ```
 
 Important v0 rule:
 
-- `construct` cannot fail
+- `Construct` cannot fail
 
 For MCU code that is fine, because the intended use is mostly boot-time construction.
 If something is impossible, the model is assert/fail-fast, not exception-like recovery.
@@ -309,7 +309,7 @@ That means:
 
 - local class objects should clean up automatically
 - nested member objects should be constructed and destroyed in order
-- `destroy` should run on normal scope exit and `return`
+- `Destroy` should run on normal scope exit and `return`
 
 Example intent:
 
@@ -325,8 +325,8 @@ conceptually becomes:
 ```c
 void Boot(void) {
     Logger logger;
-    Logger___construct(&logger);
-    Logger___destroy(&logger);
+    Logger___Construct(&logger);
+    Logger___Destroy(&logger);
     return;
 }
 ```

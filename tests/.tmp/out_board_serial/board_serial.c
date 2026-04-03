@@ -18,10 +18,6 @@ void Board___SerialDriver___Flush(Board___SerialDriver* self) {
     /* empty */
 }
 
-void Board___SerialPort___Construct(Board___SerialPort* self, u32 port_id, u32 baud_rate) {
-    /* empty */
-}
-
 void Board___SerialPort___Destroy(Board___SerialPort* self) {
     /* empty */
 }
@@ -62,11 +58,15 @@ static u32 Board___SerialPort___InstanceCount() {
     /* empty */
 }
 
-void Board___SerialConfig___Construct(Board___SerialConfig* self, u32 port_id, u32 baud_rate) {
+void Board___SerialPort___Construct(Board___SerialPort* self, u32 port_id, u32 baud_rate) {
     /* empty */
 }
 
 void Board___SerialConfig___Reset(Board___SerialConfig* self) {
+    /* empty */
+}
+
+void Board___SerialConfig___Construct(Board___SerialConfig* self, u32 port_id, u32 baud_rate) {
     /* empty */
 }
 

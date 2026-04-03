@@ -13,6 +13,6 @@ typedef struct Board___Holder {
     __cplus_maybe_u32 maybe_value;
 } Board___Holder;
 
-void Board___Holder___construct(Board___Holder* self);
+void Board___Holder___Construct(Board___Holder* self);
 
 #endif

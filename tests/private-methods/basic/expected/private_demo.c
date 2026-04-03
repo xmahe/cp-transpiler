@@ -8,7 +8,7 @@ static void Board___Gpio___Helper(Board___Gpio* self) {
     /* empty */
 }
 
-void Board___Gpio___construct(Board___Gpio* self) {
+void Board___Gpio___Construct(Board___Gpio* self) {
     /* empty */
 }
 

@@ -17,7 +17,7 @@ typedef struct Board___Uart {
 } Board___Uart;
 
 i32 Board___Uart___Write(Board___Uart* self, u8* data, u32 length);
-void Board___Uart___construct(Board___Uart* self, u32 baud_rate);
+void Board___Uart___Construct(Board___Uart* self, u32 baud_rate);
 void Board___Boot();
 
 #endif

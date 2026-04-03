@@ -39,8 +39,8 @@ interface PowerControl {
 class Logger {
 public:
     static u32 instance_count;
-    fn construct() -> void;
-    fn destroy() -> void;
+    fn Construct() -> void;
+    fn Destroy() -> void;
     fn WriteLine(u8* data, u32 len) -> i32;
     fn Flush() -> i32;
     fn SetPrefix(u8* prefix) -> void;
@@ -63,8 +63,8 @@ public:
     u32 read_count;
     u32 reset_count;
 
-    fn construct(u32 device_id, u32 sample_rate_hz) -> void;
-    fn destroy() -> void;
+    fn Construct(u32 device_id, u32 sample_rate_hz) -> void;
+    fn Destroy() -> void;
 
     implementation fn Transfer(u8* tx, u8* rx, u32 len) -> i32;
     implementation fn Lock() -> i32;
@@ -89,8 +89,8 @@ public:
     DeviceController primary;
     DeviceController secondary;
     Logger logger;
-    fn construct(u32 sample_rate_hz) -> void;
-    fn destroy() -> void;
+    fn Construct(u32 sample_rate_hz) -> void;
+    fn Destroy() -> void;
     fn InitializeDefaults() -> i32;
     fn Reset() -> i32;
     fn SelectActive(u32 id) -> i32;

@@ -43,7 +43,7 @@ i32 Board___PowerControl___IsEnabled(Board___PowerControl* self) {
     /* empty */
 }
 
-void Board___Logger___destroy(Board___Logger* self) {
+void Board___Logger___Destroy(Board___Logger* self) {
     /* empty */
 }
 
@@ -59,7 +59,7 @@ void Board___Logger___SetPrefix(Board___Logger* self, u8* prefix) {
     /* empty */
 }
 
-void Board___Logger___construct(Board___Logger* self) {
+void Board___Logger___Construct(Board___Logger* self) {
     /* empty */
 }
 
@@ -71,7 +71,7 @@ static i32 Board___DeviceController___ValidateWindow(Board___DeviceController* s
     /* empty */
 }
 
-void Board___DeviceController___destroy(Board___DeviceController* self) {
+void Board___DeviceController___Destroy(Board___DeviceController* self) {
     /* empty */
 }
 
@@ -131,11 +131,11 @@ i32 Board___DeviceController___IsReady(Board___DeviceController* self) {
     /* empty */
 }
 
-void Board___DeviceController___construct(Board___DeviceController* self, u32 device_id, u32 sample_rate_hz) {
+void Board___DeviceController___Construct(Board___DeviceController* self, u32 device_id, u32 sample_rate_hz) {
     /* empty */
 }
 
-void Board___DeviceRepository___destroy(Board___DeviceRepository* self) {
+void Board___DeviceRepository___Destroy(Board___DeviceRepository* self) {
     /* empty */
 }
 
@@ -155,7 +155,7 @@ i32 Board___DeviceRepository___PrimeLogger(Board___DeviceRepository* self) {
     /* empty */
 }
 
-void Board___DeviceRepository___construct(Board___DeviceRepository* self, u32 sample_rate_hz) {
+void Board___DeviceRepository___Construct(Board___DeviceRepository* self, u32 sample_rate_hz) {
     /* empty */
 }
 

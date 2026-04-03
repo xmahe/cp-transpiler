@@ -19,7 +19,7 @@ Without body parsing, the compiler cannot honestly handle real source files.
 Current limitations:
 
 - function bodies are mostly opaque strings
-- forbidden-construct checks are text-based
+- forbidden-Construct checks are text-based
 - `maybe<T>` safety checks are text-based
 - RAII lowering cannot be implemented cleanly
 - method calls and expression rewriting do not really exist yet

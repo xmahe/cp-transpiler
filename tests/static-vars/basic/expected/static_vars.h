@@ -8,7 +8,7 @@ typedef struct Board___Timer {
     u32 tick_count;
 } Board___Timer;
 
-void Board___Timer___construct(Board___Timer* self);
+void Board___Timer___Construct(Board___Timer* self);
 void Board___Boot();
 
 #endif

@@ -4,7 +4,7 @@ class Timer {
 public:
     static u32 instance_count;
     u32 tick_count;
-    fn construct() -> void;
+    fn Construct() -> void;
 }
 
 }

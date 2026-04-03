@@ -281,7 +281,7 @@ Useful class metadata includes:
 - static field list
 - method list
 - constructor list
-- whether `destroy` exists
+- whether `Destroy` exists
 
 That metadata becomes very useful once method-body rewriting and RAII lowering get more advanced.
 
@@ -336,7 +336,7 @@ This is still one of the major unfinished areas, but the architecture should sup
 The intended model:
 
 - track local class-type objects by lexical scope
-- inject `destroy` calls in reverse order
+- inject `Destroy` calls in reverse order
 - rewrite `return` into cleanup + final return
 
 That may use compiler-generated `goto` in the emitted C.

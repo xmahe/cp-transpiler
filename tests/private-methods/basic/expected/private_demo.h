@@ -9,6 +9,6 @@ typedef struct Board___Gpio {
 } Board___Gpio;
 
 void Board___Gpio___Toggle(Board___Gpio* self);
-void Board___Gpio___construct(Board___Gpio* self);
+void Board___Gpio___Construct(Board___Gpio* self);
 
 #endif

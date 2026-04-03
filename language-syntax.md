@@ -58,7 +58,7 @@ interface SerialDriver {
 class Uart implements SerialDriver {
 public:
     UART_HandleTypeDef* handle;
-    fn construct(UART_HandleTypeDef* handle) -> void;
+    fn Construct(UART_HandleTypeDef* handle) -> void;
     implementation fn Start() -> void;
 }
 
@@ -70,7 +70,7 @@ Typical source:
 ```c
 namespace Board {
 
-fn Uart::construct(UART_HandleTypeDef* handle) -> void {
+fn Uart::Construct(UART_HandleTypeDef* handle) -> void {
     self_handle = handle;
 }
 
@@ -119,8 +119,8 @@ private:
 
 public:
     u32 count;
-    fn construct() -> void;
-    fn destroy() -> void;
+    fn Construct() -> void;
+    fn Destroy() -> void;
     fn Reset() -> void;
 }
 ```
@@ -192,15 +192,15 @@ The current compiler already supports this style and rewrites method bodies towa
 
 Reserved method names:
 
-- `construct`
-- `destroy`
+- `Construct`
+- `Destroy`
 
 Examples:
 
 ```c
-fn construct() -> void;
-fn construct(u32 baud_rate) -> void;
-fn destroy() -> void;
+fn Construct() -> void;
+fn Construct(u32 baud_rate) -> void;
+fn Destroy() -> void;
 ```
 
 Construction sugar:
@@ -213,10 +213,10 @@ Uart uart(115200);
 That means:
 
 - declare the object
-- call the matching `construct`
+- call the matching `Construct`
 
-`construct` may be overloaded.
-`destroy` may not.
+`Construct` may be overloaded.
+`Destroy` may not.
 
 ## Fields
 

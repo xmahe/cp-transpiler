@@ -647,10 +647,10 @@ void Parser::parse_class_body(ast::ClassDecl& decl) {
         if (is_method) {
             auto method = parse_method_signature(true);
             method.is_private = in_private;
-            if (method.name == "construct") {
+            if (method.name == "Construct") {
                 decl.constructors.push_back(method);
             } else {
-                if (method.name == "destroy") {
+                if (method.name == "Destroy") {
                     decl.has_destroy = true;
                 }
                 decl.methods.push_back(method);

@@ -277,7 +277,7 @@ The likely work split is:
 
 2. `sema`
    Check that the rule is legal.
-   Example: only real class types with `destroy` participate.
+   Example: only real class types with `Destroy` participate.
 
 3. `lower`
    Rewrite the body so generated C has cleanup labels and destructor calls.

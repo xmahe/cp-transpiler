@@ -8,6 +8,8 @@
 - namespace, class, interface, enum, and `maybe<T>` support
 - compile-time DI with `inject` / `bind`
 - member initializer support
+- quoted-path `import` plus import-closure semantic resolution
+- qualified local object lowering
 - several RAII slices
 - CMake + CTest + optional GoogleTest
 
@@ -169,6 +171,7 @@ These can wait one more round:
 - full RAII lowering
 - full `maybe<T>` CFG analysis
 - full C interop inside bodies
+- `import` graph loading and validation
 - complete method-definition parsing outside declarations
 
 ## Short Version

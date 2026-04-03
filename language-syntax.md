@@ -36,7 +36,8 @@ That already shows the main style:
 
 A file can contain:
 
-- `#include` lines
+- quoted-path `import "path/to/module.hp";` lines for c+ modules
+- `#include` lines for raw C interop
 - one top-level namespace block
 - classes
 - interfaces
@@ -47,6 +48,7 @@ A file can contain:
 Typical header:
 
 ```c
+import "Board/Spi.hp";
 #include "stm32f4xx_hal.h"
 
 namespace Board {
@@ -68,6 +70,8 @@ public:
 Typical source:
 
 ```c
+import "Board/Spi.hp";
+
 namespace Board {
 
 fn Uart::Construct(UART_HandleTypeDef* handle) -> void {
@@ -80,6 +84,10 @@ fn Uart::Start() -> void {
 
 }
 ```
+
+`import "path/to/module.hp";` is the language-level dependency form. It tells the transpiler that one `c+` module depends on another `c+` module, and the compiler resolves the import closure during semantic analysis.
+
+`#include` stays available for ordinary C headers, such as HALs, libc, and board-specific vendor APIs.
 
 ## Namespaces
 

@@ -17,11 +17,13 @@ It is no longer a blank-slate scaffold plan. The compiler already exists, builds
 - pass-oriented structure: discovery, lex, parse, sema, lower, emit
 - dedicated lowered IR
 - paired `.hp` / `.cp` module handling
+- quoted-path `import "path/to/module.hp";` module dependencies with import-closure semantic resolution
 - namespace lowering and mangling
 - enums with generated `ToString`
 - classes, interfaces, and exact-match interface fulfillment checks
 - compile-time DI with `inject` and `bind`
 - constructor member initializers
+- qualified local object lowering across module boundaries
 - several RAII lowering slices for returns, fallthrough, nested return cases, and member subobjects
 - fixture-based end-to-end tests through CTest
 - optional GoogleTest unit tests
@@ -272,6 +274,7 @@ These are the main things still standing between the current compiler and a cred
 - RAII lowering does not yet cover the full intended scope model
 - `maybe<T>` analysis is still lightweight
 - C interop exists as a design goal, but is not deeply modeled
+- the supported body AST still needs to grow into the full lowering path
 
 ## Post-v1.0 Problems To Defer
 

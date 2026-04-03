@@ -7,7 +7,6 @@ void Board___Logger___Destruct(Board___Logger* self) {
     /* empty */
 }
 
-
 i32 Board___Logger___WriteLine(Board___Logger* self, u8* data, u32 len) {
     /* empty */
 }
@@ -80,11 +79,11 @@ u32 Board___DeviceController___SampleRate(Board___DeviceController* self) {
     /* empty */
 }
 
-void Board___DeviceController___SetMode(Board___DeviceController* self, DeviceMode mode) {
+void Board___DeviceController___SetMode(Board___DeviceController* self, Board___DeviceMode mode) {
     /* empty */
 }
 
-void Board___DeviceController___SetState(Board___DeviceController* self, DiagnosticState state) {
+void Board___DeviceController___SetState(Board___DeviceController* self, Board___DiagnosticState state) {
     /* empty */
 }
 
@@ -154,7 +153,7 @@ i32 Board___TickDiagnostics(u32 tick) {
     return 0;
 }
 
-i32 Board___ReportState(DiagnosticState state) {
+i32 Board___ReportState(Board___DiagnosticState state) {
     return 0;
 }
 
@@ -180,3 +179,4 @@ const char* Board___DiagnosticState___ToString(Board___DiagnosticState value) {
     default: return "<invalid>";
     }
 }
+

@@ -107,6 +107,9 @@ std::string CEmitter::emit_header(const cplus::lower::CModule& module) const {
     append_line(out, "");
     append_line(out, "#include <stdbool.h>");
     append_line(out, "#include <stdint.h>");
+    for (const auto& line : module.header_prelude_lines) {
+        append_line(out, line);
+    }
     append_line(out, "");
 
     for (const auto& maybe_type : module.maybe_types) {

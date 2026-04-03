@@ -64,6 +64,7 @@ struct CFunction {
 struct CModule {
     std::string header_name;
     std::string source_name;
+    std::vector<std::string> header_prelude_lines;
     std::vector<std::string> source_prelude_lines;
     std::vector<CStruct> structs;
     std::vector<CEnum> enums;

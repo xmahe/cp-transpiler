@@ -76,6 +76,11 @@ struct BindDecl {
     SourceRange range{};
 };
 
+struct ImportDecl {
+    std::string module_path;
+    SourceRange range{};
+};
+
 struct EnumDecl {
     std::string name;
     std::vector<std::string> namespace_path;
@@ -122,7 +127,7 @@ struct NamespaceDecl {
     SourceRange range{};
 };
 
-using Declaration = std::variant<NamespaceDecl, EnumDecl, InterfaceDecl, ClassDecl, FunctionDecl, RawCDecl, BindDecl>;
+using Declaration = std::variant<NamespaceDecl, EnumDecl, InterfaceDecl, ClassDecl, FunctionDecl, RawCDecl, BindDecl, ImportDecl>;
 
 struct Program {
     std::vector<Declaration> declarations;

@@ -15,15 +15,18 @@ namespace cplus::lower {
 class Lowerer {
 public:
     CModule lower(const cplus::sema::AnalysisResult& analysis) const;
+    CModule lower(const cplus::sema::AnalysisResult& analysis, const cplus::model::Program& emission_program) const;
 
 private:
     CStruct lower_class(
         const cplus::model::ClassDecl& decl,
         const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::string>& enum_name_map,
         const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) const;
     std::vector<CGlobal> lower_static_fields(
         const cplus::model::ClassDecl& decl,
         const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::string>& enum_name_map,
         const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) const;
     CEnum lower_enum(const cplus::model::EnumDecl& decl) const;
     CFunction lower_function(
@@ -45,8 +48,14 @@ private:
         const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
         const std::unordered_set<std::string>& default_constructible_class_names,
         const std::unordered_set<std::string>& destructible_class_names) const;
-    CMaybeType lower_maybe(std::string_view spelling, const std::unordered_map<std::string, std::string>& class_name_map) const;
-    static CType to_c_type(const cplus::model::TypeRef& type, const std::unordered_map<std::string, std::string>& class_name_map);
+    CMaybeType lower_maybe(
+        std::string_view spelling,
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::string>& enum_name_map) const;
+    static CType to_c_type(
+        const cplus::model::TypeRef& type,
+        const std::unordered_map<std::string, std::string>& class_name_map,
+        const std::unordered_map<std::string, std::string>& enum_name_map);
     static bool is_maybe_type(std::string_view spelling);
     static std::string maybe_type_name(std::string_view spelling);
     static std::string maybe_inner_type(std::string_view spelling);

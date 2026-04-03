@@ -24,6 +24,7 @@ add_library(${CPLUS_LIBRARY_TARGET}
     src/lex/lexer.cpp
     src/lower/lower.cpp
     src/lower/raii.cpp
+    src/parse/body_validation.cpp
     src/parse/parser.cpp
     src/sema/analyze.cpp
     src/sema/symbols.cpp

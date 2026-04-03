@@ -16,7 +16,7 @@ if(CPLUS_EXECUTABLE STREQUAL "")
 endif()
 
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-file(GLOB CPLUS_EXAMPLE_INPUTS CONFIGURE_DEPENDS
+file(GLOB_RECURSE CPLUS_EXAMPLE_INPUTS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cp"
 )
@@ -29,13 +29,20 @@ set(CPLUS_EXAMPLE_OUTPUTS)
 set(CPLUS_EXAMPLE_HEADERS)
 foreach(input_file IN LISTS CPLUS_EXAMPLE_INPUTS)
     if(input_file MATCHES "\\.hp$")
-        get_filename_component(stem "${input_file}" NAME_WE)
+        file(RELATIVE_PATH relative_header "${CMAKE_CURRENT_SOURCE_DIR}/src" "${input_file}")
+        get_filename_component(stem "${relative_header}" NAME_WE)
+        get_filename_component(rel_dir "${relative_header}" DIRECTORY)
+        if(rel_dir STREQUAL "")
+            set(output_stem "${stem}")
+        else()
+            set(output_stem "${rel_dir}/${stem}")
+        endif()
         list(APPEND CPLUS_EXAMPLE_OUTPUTS
-            "${GENERATED_DIR}/${stem}.h"
-            "${GENERATED_DIR}/${stem}.c"
+            "${GENERATED_DIR}/${output_stem}.h"
+            "${GENERATED_DIR}/${output_stem}.c"
         )
         list(APPEND CPLUS_EXAMPLE_HEADERS
-            "${GENERATED_DIR}/${stem}.h"
+            "${GENERATED_DIR}/${output_stem}.h"
         )
     endif()
 endforeach()

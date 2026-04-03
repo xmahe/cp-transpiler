@@ -499,6 +499,7 @@ The language is meant to work on top of existing C code, not in isolation.
 
 That means:
 
+- quoted-path `import "path/to/module.hp";` is the language-level way to depend on another `c+` module, and the compiler resolves the full import closure during semantic analysis
 - raw C declarations are allowed
 - generated output is plain C
 - C calls from `.cp` bodies are expected to work
@@ -507,6 +508,7 @@ That means:
 Practical example:
 
 ```c
+import "Board/Spi.hp";
 fn Boot() -> void {
     HAL_UART_Transmit(handle, buffer, len, 100);
 }
@@ -514,6 +516,12 @@ fn Boot() -> void {
 
 This needs to survive into generated C in a boring way.
 That is a first-class design goal, not a side feature.
+
+Rules of thumb:
+
+- use `import` for other `c+` modules
+- use `#include` for raw C headers
+- do not rely on `#include` to make `c+` declarations visible to the transpiler
 
 ## Style and Simplicity Restrictions
 

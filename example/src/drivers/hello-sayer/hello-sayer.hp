@@ -1,0 +1,9 @@
+namespace Drivers {
+
+class HelloSayer {
+ public:
+    fn SayIt() -> void;
+}
+
+
+}

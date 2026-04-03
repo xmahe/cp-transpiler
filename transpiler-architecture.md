@@ -75,6 +75,8 @@ This is very important, because many language features depend on it:
 
 Without module pairing, the language becomes awkward very quickly.
 
+Quoted-path `import "path/to/module.hp";` is the source-level dependency form, and the driver should resolve the full import closure before semantic analysis runs on the merged module graph.
+
 During lowering and emission, `export_c` free functions bypass normal namespace mangling and keep a plain C-callable symbol name.
 
 In practice, this means a build can provide a small wiring module that binds interface slots to concrete classes for a specific board or firmware variant.
@@ -367,6 +369,7 @@ This is not optional.
 
 Examples that must be possible:
 
+- depending on another `c+` module through `import "path/to/module.hp";`
 - calling HAL functions from method bodies
 - using vendor structs and handles in fields
 - including existing C headers
@@ -374,9 +377,15 @@ Examples that must be possible:
 
 So the architecture should stay compatible with:
 
+- module-level imports for `c+` dependencies
 - raw C declarations
 - passthrough C calls
 - readable generated C
+
+The intended split is:
+
+- quoted-path `import "path/to/module.hp";` for `c+` module dependencies
+- `#include` for raw C interop
 
 ## What Is Already Working
 

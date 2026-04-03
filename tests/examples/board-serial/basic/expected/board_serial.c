@@ -34,7 +34,7 @@ i32 Board___SerialPort___IsReady(Board___SerialPort* self) {
     /* empty */
 }
 
-DriverMode Board___SerialPort___Mode(Board___SerialPort* self) {
+Board___DriverMode Board___SerialPort___Mode(Board___SerialPort* self) {
     /* empty */
 }
 
@@ -66,15 +66,15 @@ i32 Board___PollSerial(u8* buffer, u32 length) {
     return 0;
 }
 
-u8* Board___SerialStateName(UartState state) {
+u8* Board___SerialStateName(Board___UartState state) {
     return 0;
 }
 
-u8* Board___DriverModeName(DriverMode mode) {
+u8* Board___DriverModeName(Board___DriverMode mode) {
     return 0;
 }
 
-DriverMode Board___SelectMode(u32 request) {
+Board___DriverMode Board___SelectMode(u32 request) {
     return Board___DriverMode___kDriverModePolling;
 }
 
@@ -82,7 +82,7 @@ u32 Board___NormalizeBaudRate(u32 baud_rate) {
     return baud_rate;
 }
 
-i32 Board___IsPollingMode(DriverMode mode) {
+i32 Board___IsPollingMode(Board___DriverMode mode) {
     return 0;
 }
 

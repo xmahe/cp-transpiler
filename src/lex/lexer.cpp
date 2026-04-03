@@ -30,6 +30,7 @@ bool is_keyword(std::string_view lexeme, TokenKind& kind_out) {
         {"implements", TokenKind::KeywordImplements},
         {"implementation", TokenKind::KeywordImplementation},
         {"export_c", TokenKind::KeywordExportC},
+        {"import", TokenKind::KeywordImport},
         {"inject", TokenKind::KeywordInject},
         {"bind", TokenKind::KeywordBind},
         {"public", TokenKind::KeywordPublic},
@@ -200,6 +201,8 @@ Token Lexer::lex_punctuation() {
     if (ch == ':' && peek() == ':') {
         advance();
     } else if (ch == '-' && peek() == '>') {
+        advance();
+    } else if ((ch == '+' || ch == '-' || ch == '*' || ch == '/' || ch == '%') && peek() == '=') {
         advance();
     } else if ((ch == '=' || ch == '!' || ch == '<' || ch == '>') && peek() == '=') {
         advance();

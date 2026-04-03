@@ -15,6 +15,7 @@ bool is_identifier_like(const lex::Token& token) {
 
 bool is_operator_lexeme(std::string_view lexeme) {
     return lexeme == "=" || lexeme == "+" || lexeme == "-" || lexeme == "*" || lexeme == "/" || lexeme == "%" ||
+        lexeme == "+=" || lexeme == "-=" || lexeme == "*=" || lexeme == "/=" || lexeme == "%=" ||
         lexeme == "==" || lexeme == "!=" || lexeme == "<" || lexeme == ">" || lexeme == "<=" || lexeme == ">=" ||
         lexeme == "&&" || lexeme == "||";
 }
@@ -351,6 +352,27 @@ ast::BindDecl Parser::parse_bind() {
     return decl;
 }
 
+ast::ImportDecl Parser::parse_import() {
+    const std::size_t start = current_index_;
+    consume(lex::TokenKind::KeywordImport, "expected import");
+    ast::ImportDecl decl;
+    if (!check(lex::TokenKind::String)) {
+        diagnostics_.error("expected string literal after import", current().span, source_path_.string());
+        decl.span = tokens_[start].span;
+        return decl;
+    }
+    decl.module_path = current().lexeme;
+    if (decl.module_path.size() >= 2 && decl.module_path.front() == '"' && decl.module_path.back() == '"') {
+        decl.module_path = decl.module_path.substr(1, decl.module_path.size() - 2);
+    }
+    ++current_index_;
+    if (check(lex::TokenKind::Punctuation) && current().lexeme == ";") {
+        ++current_index_;
+    }
+    decl.span = span_from(start, current_index_ == 0 ? start : current_index_ - 1);
+    return decl;
+}
+
 std::unique_ptr<ast::Expression> Parser::parse_primary_expression() {
     if (eof()) {
         return nullptr;
@@ -458,7 +480,7 @@ std::unique_ptr<ast::Expression> Parser::parse_expression_until(const std::vecto
         auto wrapped = std::make_unique<ast::Expression>();
         wrapped->span.begin = lhs ? lhs->span.begin : tokens_[begin_index].span.begin;
         wrapped->span.end = rhs ? rhs->span.end : current().span.end;
-        if (op == "=") {
+        if (op == "=" || op == "+=" || op == "-=" || op == "*=" || op == "/=" || op == "%=") {
             wrapped->node = ast::AssignmentExpr{std::move(lhs), std::move(rhs), wrapped->span};
         } else {
             wrapped->node = ast::BinaryExpr{op, std::move(lhs), std::move(rhs), wrapped->span};
@@ -484,11 +506,14 @@ bool Parser::is_declaration_statement() const {
     }
 
     std::size_t i = current_index_;
-    bool saw_name = false;
+    std::size_t identifier_count = 0;
     while (i < tokens_.size()) {
         const auto& token = tokens_[i];
         if (token.lexeme == ";") {
-            return saw_name;
+            return identifier_count >= 2;
+        }
+        if (token.lexeme == "=" || token.lexeme == "+=" || token.lexeme == "-=" || token.lexeme == "*=" || token.lexeme == "/=" || token.lexeme == "%=") {
+            return identifier_count >= 2;
         }
         if (token.lexeme == "(" || token.lexeme == "[" || token.lexeme == "]" || token.lexeme == "{") {
             return false;
@@ -497,7 +522,7 @@ bool Parser::is_declaration_statement() const {
             return false;
         }
         if (token.kind == lex::TokenKind::Identifier) {
-            saw_name = true;
+            ++identifier_count;
         }
         ++i;
     }
@@ -544,6 +569,107 @@ std::unique_ptr<ast::Statement> Parser::parse_return_statement() {
     } else {
         stmt->span.end = span.end;
     }
+    return stmt;
+}
+
+std::unique_ptr<ast::Statement> Parser::parse_if_statement() {
+    auto stmt = std::make_unique<ast::Statement>();
+    const auto start_span = current().span;
+    ++current_index_;
+    stmt->span.begin = start_span.begin;
+
+    consume(lex::TokenKind::Punctuation, "expected '(' after if");
+    auto condition = parse_expression_until({")"});
+    consume(lex::TokenKind::Punctuation, "expected ')' after if condition");
+
+    auto then_branch = parse_statement();
+    std::unique_ptr<ast::Statement> else_branch;
+    if (check(lex::TokenKind::KeywordElse)) {
+        ++current_index_;
+        else_branch = parse_statement();
+    }
+
+    ast::Span span = start_span;
+    if (else_branch != nullptr) {
+        span.end = else_branch->span.end;
+    } else if (then_branch != nullptr) {
+        span.end = then_branch->span.end;
+    } else if (condition != nullptr) {
+        span.end = condition->span.end;
+    }
+
+    stmt->span = span;
+    stmt->node = ast::IfStmt{std::move(condition), std::move(then_branch), std::move(else_branch), span};
+    return stmt;
+}
+
+std::unique_ptr<ast::Statement> Parser::parse_while_statement() {
+    auto stmt = std::make_unique<ast::Statement>();
+    const auto start_span = current().span;
+    ++current_index_;
+    stmt->span.begin = start_span.begin;
+
+    consume(lex::TokenKind::Punctuation, "expected '(' after while");
+    auto condition = parse_expression_until({")"});
+    consume(lex::TokenKind::Punctuation, "expected ')' after while condition");
+    auto body = parse_statement();
+
+    ast::Span span = start_span;
+    if (body != nullptr) {
+        span.end = body->span.end;
+    } else if (condition != nullptr) {
+        span.end = condition->span.end;
+    }
+
+    stmt->span = span;
+    stmt->node = ast::WhileStmt{std::move(condition), std::move(body), span};
+    return stmt;
+}
+
+std::unique_ptr<ast::Statement> Parser::parse_for_statement() {
+    auto stmt = std::make_unique<ast::Statement>();
+    const auto start_span = current().span;
+    ++current_index_;
+    stmt->span.begin = start_span.begin;
+
+    consume(lex::TokenKind::Punctuation, "expected '(' after for");
+
+    std::unique_ptr<ast::Statement> init;
+    if (!(check(lex::TokenKind::Punctuation) && current().lexeme == ";")) {
+        auto init_expr = parse_expression_until({";"});
+        init = std::make_unique<ast::Statement>();
+        init->span = init_expr != nullptr ? init_expr->span : start_span;
+        init->node = ast::ExprStmt{std::move(init_expr), init->span};
+    }
+    consume(lex::TokenKind::Punctuation, "expected ';' after for initializer");
+
+    std::unique_ptr<ast::Expression> condition;
+    if (!(check(lex::TokenKind::Punctuation) && current().lexeme == ";")) {
+        condition = parse_expression_until({";"});
+    }
+    consume(lex::TokenKind::Punctuation, "expected ';' after for condition");
+
+    std::unique_ptr<ast::Expression> step;
+    if (!(check(lex::TokenKind::Punctuation) && current().lexeme == ")")) {
+        step = parse_expression_until({")"});
+    }
+    consume(lex::TokenKind::Punctuation, "expected ')' after for header");
+
+    auto body = parse_statement();
+
+    ast::Span span = start_span;
+    if (body != nullptr) {
+        span.end = body->span.end;
+    } else if (step != nullptr) {
+        span.end = step->span.end;
+    } else if (condition != nullptr) {
+        span.end = condition->span.end;
+    } else if (init != nullptr) {
+        span.end = init->span.end;
+    }
+
+    stmt->span = span;
+    stmt->node = ast::ForStmt{std::move(init), std::move(condition), std::move(step), std::move(body), span};
     return stmt;
 }
 
@@ -615,6 +741,15 @@ std::unique_ptr<ast::Statement> Parser::parse_statement() {
 
     if (check(lex::TokenKind::Punctuation) && current().lexeme == "{") {
         return parse_block_statement();
+    }
+    if (check(lex::TokenKind::KeywordIf)) {
+        return parse_if_statement();
+    }
+    if (check(lex::TokenKind::KeywordWhile)) {
+        return parse_while_statement();
+    }
+    if (check(lex::TokenKind::KeywordFor)) {
+        return parse_for_statement();
     }
     if (check(lex::TokenKind::KeywordReturn)) {
         return parse_return_statement();
@@ -707,6 +842,8 @@ std::vector<ast::Declaration> Parser::parse_block_declarations() {
             decls.push_back(parse_function());
         } else if (check(lex::TokenKind::KeywordBind)) {
             decls.push_back(parse_bind_declaration());
+        } else if (check(lex::TokenKind::KeywordImport)) {
+            decls.push_back(parse_import_declaration());
         } else {
             decls.push_back(parse_raw_c());
         }
@@ -976,6 +1113,10 @@ ast::Declaration Parser::parse_bind_declaration() {
     return parse_bind();
 }
 
+ast::Declaration Parser::parse_import_declaration() {
+    return parse_import();
+}
+
 ast::Declaration Parser::parse_raw_c() {
     const std::size_t start = current_index_;
     if (check(lex::TokenKind::Punctuation) && current().lexeme == "#") {
@@ -1028,6 +1169,10 @@ ast::Module Parser::parse_module() {
         }
         if (check(lex::TokenKind::KeywordBind)) {
             module.declarations.push_back(parse_bind_declaration());
+            continue;
+        }
+        if (check(lex::TokenKind::KeywordImport)) {
+            module.declarations.push_back(parse_import_declaration());
             continue;
         }
         if (check(lex::TokenKind::EndOfFile)) {

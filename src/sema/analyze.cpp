@@ -216,9 +216,6 @@ void Analyzer::validate_program(const model::Program& program, const AnalysisOpt
     }
     validate_bindings(program, result);
     validate_missing_free_function_definitions(program, result);
-    if (options.enforce_maybe_flow) {
-        validate_maybe_flow(program, options, result);
-    }
 }
 
 void Analyzer::validate_declaration(const model::Declaration& decl, const AnalysisOptions& options, AnalysisResult& result) const {
@@ -239,6 +236,8 @@ void Analyzer::validate_declaration(const model::Declaration& decl, const Analys
                 validate_name_style(node.signature.name, "CamelCase", node.range, result);
                 validate_function_signature(node.signature, options, result);
                 validate_function_body_restrictions(node, result);
+            } else if constexpr (std::is_same_v<T, model::ImportDecl>) {
+                (void)node;
             } else if constexpr (std::is_same_v<T, model::BindDecl>) {
                 (void)node;
             } else if constexpr (std::is_same_v<T, model::RawCDecl>) {
@@ -671,27 +670,6 @@ void Analyzer::validate_function_body_restrictions(const model::FunctionDecl& de
         if (decl.signature.is_static) {
             add_diagnostic(result, model::Severity::Error, decl.range, "export_c cannot be combined with static");
         }
-    }
-
-    const auto& body = decl.body_source;
-    if (body.empty()) {
-        return;
-    }
-
-    auto reject_if_contains = [&](std::string_view needle, std::string message) {
-        if (body.find(needle) != std::string::npos) {
-            add_diagnostic(result, model::Severity::Error, decl.range, std::move(message));
-        }
-    };
-
-    reject_if_contains("goto", "goto is forbidden");
-    reject_if_contains("continue", "continue is forbidden");
-    reject_if_contains("++", "++ is forbidden");
-    reject_if_contains("--", "-- is forbidden");
-    reject_if_contains("?", "ternary operator is forbidden");
-
-    if (body.find("switch") != std::string::npos && body.find("default:") == std::string::npos) {
-        add_diagnostic(result, model::Severity::Error, decl.range, "switch must include default");
     }
 }
 

@@ -38,8 +38,8 @@ typedef struct Board___DeviceController {
     __cplus_maybe_u32 maybe_last_error;
     u32 sample_rate_hz;
     u8* _scratch; // private
-    DeviceMode current_mode;
-    DiagnosticState current_state;
+    Board___DeviceMode current_mode;
+    Board___DiagnosticState current_state;
     u32 transfer_count;
     u32 read_count;
     u32 reset_count;
@@ -69,8 +69,8 @@ i32 Board___DeviceController___Enable(Board___DeviceController* self);
 i32 Board___DeviceController___Disable(Board___DeviceController* self);
 i32 Board___DeviceController___IsEnabled(Board___DeviceController* self);
 u32 Board___DeviceController___SampleRate(Board___DeviceController* self);
-void Board___DeviceController___SetMode(Board___DeviceController* self, DeviceMode mode);
-void Board___DeviceController___SetState(Board___DeviceController* self, DiagnosticState state);
+void Board___DeviceController___SetMode(Board___DeviceController* self, Board___DeviceMode mode);
+void Board___DeviceController___SetState(Board___DeviceController* self, Board___DiagnosticState state);
 i32 Board___DeviceController___IsReady(Board___DeviceController* self);
 void Board___DeviceController___Construct(Board___DeviceController* self);
 void Board___DeviceController___Construct(Board___DeviceController* self, u32 device_id, u32 sample_rate_hz);
@@ -87,6 +87,6 @@ i32 Board___SampleAndReport(u8* buffer, u32 len);
 i32 Board___WarmUpLogger();
 i32 Board___ResetHardware();
 i32 Board___TickDiagnostics(u32 tick);
-i32 Board___ReportState(DiagnosticState state);
+i32 Board___ReportState(Board___DiagnosticState state);
 
 #endif

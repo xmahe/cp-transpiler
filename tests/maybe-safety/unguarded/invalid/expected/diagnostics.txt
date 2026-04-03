@@ -1,0 +1,1 @@
+error: /Users/magnus/c+/tests/maybe-safety/unguarded/invalid/input/maybe_unguarded.cp:4:12: unsafe maybe<T>.value() access without proven has_value(): value

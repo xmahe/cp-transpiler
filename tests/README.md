@@ -18,6 +18,7 @@ Current layout:
 
 - `smoke/basic/input/` contains a small end-to-end sample
 - `smoke/basic/expected/` contains the current expected generated C output
+- `qualified-local-object/basic/` covers cross-module local-object lowering
 - `CMakeLists.txt` registers fixture tests with CTest and optional unit tests with GoogleTest
 - `ctest_fixture.sh` is the shared helper that runs the built compiler against a fixture directory and compares output
 - `smoke/run_smoke.sh`, `run_tests.sh`, and the other `run_*.sh` files are convenience wrappers for manual reruns; they are no longer the primary automated entrypoint

@@ -3,14 +3,17 @@
 #include "emit/emit_c.h"
 #include "lower/lower.h"
 #include "lex/lexer.h"
+#include "parse/body_validation.h"
 #include "parse/parser.h"
 #include "sema/analyze.h"
 #include "support/files.h"
 
 #include <algorithm>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <optional>
+#include <set>
 #include <unordered_set>
 #include <utility>
 
@@ -243,6 +246,11 @@ void ast_to_model_program(
                     model_decl.namespace_path = namespace_path;
                     model_decl.range = to_source_range(node.span, source_path);
                     out.declarations.push_back(std::move(model_decl));
+                } else if constexpr (std::is_same_v<T, cplus::ast::ImportDecl>) {
+                    cplus::model::ImportDecl model_decl;
+                    model_decl.module_path = node.module_path;
+                    model_decl.range = to_source_range(node.span, source_path);
+                    out.declarations.push_back(std::move(model_decl));
                 }
             },
             decl);
@@ -347,6 +355,11 @@ void ast_to_model_program_group(
                         model_decl.namespace_path = namespace_path;
                         model_decl.range = to_source_range(node.span, source_path);
                         out.declarations.push_back(std::move(model_decl));
+                    } else if constexpr (std::is_same_v<T, cplus::ast::ImportDecl>) {
+                        cplus::model::ImportDecl model_decl;
+                        model_decl.module_path = node.module_path;
+                        model_decl.range = to_source_range(node.span, source_path);
+                        out.declarations.push_back(std::move(model_decl));
                     }
                 },
                 decl);
@@ -379,7 +392,65 @@ void transfer_analysis_diagnostics(const cplus::sema::AnalysisResult& analysis, 
     }
 }
 
-void process_compilation_unit(const std::vector<std::filesystem::path>& files, const Options& options, support::Diagnostics& diagnostics) {
+struct CompilationUnitData {
+    std::vector<std::filesystem::path> files;
+    std::filesystem::path output_stem;
+    cplus::model::Program program;
+};
+
+std::string normalize_import_stem(std::string module_path) {
+    if (module_path.ends_with(".hp") || module_path.ends_with(".cp")) {
+        module_path.resize(module_path.size() - 3);
+    }
+    return std::filesystem::path(module_path).lexically_normal().generic_string();
+}
+
+void append_imported_declarations(cplus::model::Program& target, const cplus::model::Program& imported) {
+    for (const auto& decl : imported.declarations) {
+        if (std::holds_alternative<cplus::model::NamespaceDecl>(decl) ||
+            std::holds_alternative<cplus::model::ImportDecl>(decl)) {
+            continue;
+        }
+        target.declarations.push_back(decl);
+    }
+}
+
+void emit_compilation_unit(
+    const cplus::model::Program& local_program,
+    const cplus::model::Program& analysis_program,
+    const std::filesystem::path& output_stem,
+    const Options& options,
+    support::Diagnostics& diagnostics) {
+    cplus::sema::Analyzer analyzer;
+    auto analysis = analyzer.analyze(analysis_program);
+    transfer_analysis_diagnostics(analysis, diagnostics);
+    if (diagnostics.has_errors()) {
+        return;
+    }
+
+    cplus::lower::Lowerer lowerer;
+    auto lowered = lowerer.lower(analysis, local_program);
+    lowered.header_name = output_stem.generic_string() + ".h";
+    lowered.source_name = output_stem.generic_string() + ".c";
+
+    cplus::emit::CEmitter emitter;
+    const auto header_path = options.output_dir / lowered.header_name;
+    const auto source_path = options.output_dir / lowered.source_name;
+    std::filesystem::create_directories(header_path.parent_path());
+    std::filesystem::create_directories(source_path.parent_path());
+    if (!emitter.write_header(lowered, header_path)) {
+        diagnostics.error("failed to write generated header", {}, header_path.string());
+    }
+    if (!emitter.write_source(lowered, source_path)) {
+        diagnostics.error("failed to write generated source", {}, source_path.string());
+    }
+}
+
+CompilationUnitData parse_compilation_unit(
+    const std::vector<std::filesystem::path>& files,
+    const std::filesystem::path& output_stem,
+    const Options& options,
+    support::Diagnostics& diagnostics) {
     auto ordered_files = files;
     std::sort(
         ordered_files.begin(),
@@ -400,7 +471,7 @@ void process_compilation_unit(const std::vector<std::filesystem::path>& files, c
         std::string source;
         if (!support::read_text_file(file, source)) {
             diagnostics.error("failed to read file", {}, file.string());
-            return;
+            return CompilationUnitData{ordered_files, output_stem, {}};
         }
 
         auto module = parse::parse_module(std::move(source), file, diagnostics);
@@ -410,29 +481,40 @@ void process_compilation_unit(const std::vector<std::filesystem::path>& files, c
         modules.push_back(std::move(module));
     }
 
+    cplus::parse::validate_body_ast(modules, diagnostics);
+
     cplus::model::Program program;
     ast_to_model_program_group(modules, program, diagnostics);
+    return CompilationUnitData{ordered_files, output_stem, std::move(program)};
+}
 
-    cplus::sema::Analyzer analyzer;
-    auto analysis = analyzer.analyze(program);
-    transfer_analysis_diagnostics(analysis, diagnostics);
-    if (diagnostics.has_errors()) {
-        return;
+std::filesystem::path output_stem_for(
+    const std::filesystem::path& grouped_key,
+    const std::vector<std::filesystem::path>& input_roots) {
+    const auto grouped_abs = std::filesystem::absolute(grouped_key).lexically_normal();
+    std::optional<std::filesystem::path> best_relative;
+    std::size_t best_root_length = 0;
+
+    for (const auto& root : input_roots) {
+        auto candidate_root = std::filesystem::absolute(root).lexically_normal();
+        if (std::filesystem::is_regular_file(root)) {
+            candidate_root = candidate_root.parent_path();
+        }
+        const auto root_text = candidate_root.generic_string();
+        const auto key_text = grouped_abs.generic_string();
+        const auto prefix = root_text.ends_with('/') ? root_text : root_text + "/";
+        if (key_text == root_text || key_text.rfind(prefix, 0) == 0) {
+            if (root_text.size() > best_root_length) {
+                best_root_length = root_text.size();
+                best_relative = grouped_abs.lexically_relative(candidate_root);
+            }
+        }
     }
 
-    cplus::lower::Lowerer lowerer;
-    auto lowered = lowerer.lower(analysis);
-    lowered.header_name = ordered_files.front().stem().string() + ".h";
-    lowered.source_name = ordered_files.front().stem().string() + ".c";
-
-    cplus::emit::CEmitter emitter;
-    std::filesystem::create_directories(options.output_dir);
-    if (!emitter.write_header(lowered, options.output_dir / lowered.header_name)) {
-        diagnostics.error("failed to write generated header", {}, (options.output_dir / lowered.header_name).string());
+    if (best_relative.has_value() && !best_relative->empty()) {
+        return *best_relative;
     }
-    if (!emitter.write_source(lowered, options.output_dir / lowered.source_name)) {
-        diagnostics.error("failed to write generated source", {}, (options.output_dir / lowered.source_name).string());
-    }
+    return grouped_key.filename();
 }
 
 } // namespace
@@ -454,9 +536,47 @@ int run_transpiler(const Options& options, support::Diagnostics& diagnostics) {
         grouped[file.parent_path() / file.stem()].push_back(file);
     }
 
+    std::map<std::string, CompilationUnitData> units_by_stem;
     for (const auto& [key, grouped_files] : grouped) {
-        (void)key;
-        process_compilation_unit(grouped_files, options, diagnostics);
+        const auto output_stem = output_stem_for(key, options.inputs);
+        const auto unit = parse_compilation_unit(grouped_files, output_stem, options, diagnostics);
+        units_by_stem.emplace(output_stem.generic_string(), unit);
+    }
+
+    for (const auto& [stem, unit] : units_by_stem) {
+        cplus::model::Program analysis_program = unit.program;
+        std::set<std::string> imported_stems;
+
+        std::function<void(const cplus::model::Program&)> collect_imports = [&](const cplus::model::Program& program) {
+            for (const auto& decl : program.declarations) {
+                const auto* import = std::get_if<cplus::model::ImportDecl>(&decl);
+                if (import == nullptr || import->module_path.empty()) {
+                    continue;
+                }
+                const auto import_stem = normalize_import_stem(import->module_path);
+                if (!imported_stems.insert(import_stem).second) {
+                    continue;
+                }
+                const auto unit_it = units_by_stem.find(import_stem);
+                if (unit_it == units_by_stem.end()) {
+                    cplus::ast::Span span;
+                    span.begin.line = import->range.begin.line;
+                    span.begin.column = import->range.begin.column;
+                    span.end.line = import->range.end.line;
+                    span.end.column = import->range.end.column;
+                    diagnostics.error("imported module not found: " + import->module_path, span, import->range.begin.file);
+                    continue;
+                }
+                append_imported_declarations(analysis_program, unit_it->second.program);
+                collect_imports(unit_it->second.program);
+            }
+        };
+
+        collect_imports(unit.program);
+        if (diagnostics.has_errors()) {
+            continue;
+        }
+        emit_compilation_unit(unit.program, analysis_program, unit.output_stem, options, diagnostics);
     }
 
     return diagnostics.has_errors() ? 1 : 0;

@@ -1,0 +1,12 @@
+namespace Drivers {
+
+class HelloSayer {
+public:
+    fn Construct() -> void;
+    fn Destruct() -> void;
+    fn SayIt() -> void;
+}
+
+export_c fn Main() -> void;
+
+}

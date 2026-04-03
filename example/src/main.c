@@ -1,4 +1,4 @@
-#include "demo.h"
+#include "app/main.h"
 
 int main(void) {
     return Main();

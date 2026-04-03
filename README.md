@@ -9,6 +9,7 @@ Key ideas:
 - classes lower to C structs plus functions
 - interfaces are compile-time contracts
 - `inject` and `bind` provide compile-time dependency wiring
+- quoted-path `import "path/to/module.hp";` is the c+-level dependency form between modules, and the compiler resolves the import closure during semantic analysis
 - namespaces lower to `___`-separated C prefixes
 - RAII is supported through transpiler-generated cleanup code
 - output stays compatible with ordinary C build systems
@@ -78,7 +79,8 @@ Current state:
 
 - the compiler is a real working vertical slice across `lex`, `parse`, `sema`, `lower`, and `emit`
 - the repo now builds through CMake and tests through CTest, with GoogleTest available for unit tests
-- end-to-end fixture coverage is in place for namespaces, enums, interfaces, `maybe<T>`, compile-time DI, member initializers, out-of-class methods, and several RAII cases
+- end-to-end fixture coverage is in place for namespaces, enums, interfaces, `maybe<T>`, compile-time DI, member initializers, out-of-class methods, import-closure resolution, qualified local object lowering, and several RAII cases
+- quoted-path `import "path/to/module.hp";` is the intended way to link `c+` modules together; raw `#include` remains for vendor and libc interop
 
 Still left before v1.0:
 

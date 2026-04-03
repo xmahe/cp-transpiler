@@ -1,5 +1,6 @@
 error: /Users/magnus/c+/tests/forbidden-constructs/invalid/input/forbidden.cp:3:1: goto is forbidden
-error: /Users/magnus/c+/tests/forbidden-constructs/invalid/input/forbidden.cp:3:1: continue is forbidden
 error: /Users/magnus/c+/tests/forbidden-constructs/invalid/input/forbidden.cp:3:1: ++ is forbidden
 error: /Users/magnus/c+/tests/forbidden-constructs/invalid/input/forbidden.cp:3:1: -- is forbidden
 error: /Users/magnus/c+/tests/forbidden-constructs/invalid/input/forbidden.cp:3:1: ternary operator is forbidden
+error: /Users/magnus/c+/tests/forbidden-constructs/invalid/input/forbidden.cp:5:5: continue is forbidden
+error: /Users/magnus/c+/tests/forbidden-constructs/invalid/input/forbidden.cp:8:5: declarations may not be interleaved with statements

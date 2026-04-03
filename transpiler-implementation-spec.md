@@ -13,6 +13,8 @@ What already exists:
 - CTest fixture tests
 - optional GoogleTest unit tests
 - real support for namespaces, classes, interfaces, `maybe<T>`, compile-time DI, member initializers, and several RAII cases
+- quoted-path `import "path/to/module.hp";` with import-closure semantic resolution
+- qualified local object lowering across module boundaries
 
 Main remaining gaps before v1.0:
 
@@ -20,6 +22,11 @@ Main remaining gaps before v1.0:
 - stronger `maybe<T>` control-flow analysis
 - deeper C interop modeling
 - broader RAII cleanup support beyond the current slices
+
+The intended dependency split is:
+
+- quoted-path `import "path/to/module.hp";` for `c+` module-to-module dependencies
+- raw `#include` for plain C interop only
 
 Exported C entrypoints should stay simple:
 

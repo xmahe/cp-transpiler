@@ -77,6 +77,11 @@ struct BindDecl {
     Span span{};
 };
 
+struct ImportDecl {
+    std::string module_path;
+    Span span{};
+};
+
 struct Expression;
 struct Statement;
 
@@ -202,7 +207,7 @@ struct Statement {
 
 struct NamespaceDecl {
     QualifiedName name;
-    std::vector<std::variant<NamespaceDecl, struct InterfaceDecl, struct ClassDecl, struct EnumDecl, struct FunctionDecl, struct RawCDecl, BindDecl>> declarations;
+    std::vector<std::variant<NamespaceDecl, struct InterfaceDecl, struct ClassDecl, struct EnumDecl, struct FunctionDecl, struct RawCDecl, BindDecl, ImportDecl>> declarations;
     Span span{};
 };
 
@@ -243,7 +248,7 @@ struct RawCDecl {
     Span span{};
 };
 
-using Declaration = std::variant<NamespaceDecl, InterfaceDecl, ClassDecl, EnumDecl, FunctionDecl, RawCDecl, BindDecl>;
+using Declaration = std::variant<NamespaceDecl, InterfaceDecl, ClassDecl, EnumDecl, FunctionDecl, RawCDecl, BindDecl, ImportDecl>;
 
 struct Module {
     std::filesystem::path source_path;

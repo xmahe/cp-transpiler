@@ -90,7 +90,9 @@ Current example:
 
 - `demo.hp` and `demo.cp` with the same stem are treated as one logical module
 - the driver reads both, parses both, merges them, then emits one `demo.h` and one `demo.c`
+- quoted-path `import "path/to/module.hp";` dependencies are resolved through the import closure during semantic analysis
 - `inject` and `bind` are resolved during analysis and lowering so interface slots become concrete fields in generated C
+- qualified local object usage is lowered so cross-module locals and their method calls become plain C names
 
 If you want to understand the whole compiler flow first, start here.
 

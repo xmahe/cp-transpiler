@@ -48,7 +48,7 @@ typedef struct Board___SerialConfig {
     u8 trace_enabled;
 } Board___SerialConfig;
 
-void Board___SerialPort___Destroy(Board___SerialPort* self);
+void Board___SerialPort___Destruct(Board___SerialPort* self);
 void Board___SerialPort___Start(Board___SerialPort* self);
 void Board___SerialPort___Stop(Board___SerialPort* self);
 i32 Board___SerialPort___Send(Board___SerialPort* self, u8* data, u32 length);

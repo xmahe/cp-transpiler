@@ -13,7 +13,7 @@ struct LocalObject {
 
 struct CleanupStep {
     std::string label;
-    std::vector<std::string> destroy_calls;
+    std::vector<std::string> destruct_calls;
 };
 
 struct CleanupPlan {

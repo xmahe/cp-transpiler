@@ -219,7 +219,7 @@ void ast_to_model_program(
                     for (const auto& ctor : node.constructors) {
                         model_decl.constructors.push_back(to_model_signature(ctor, source_path));
                     }
-                    model_decl.has_destroy = node.has_destroy;
+                    model_decl.has_destruct = node.has_destruct;
                     out.declarations.push_back(std::move(model_decl));
                 } else if constexpr (std::is_same_v<T, cplus::ast::FunctionDecl>) {
                     cplus::model::FunctionDecl model_decl;
@@ -321,7 +321,7 @@ void ast_to_model_program_group(
                         for (const auto& ctor : node.constructors) {
                             model_decl.constructors.push_back(to_model_signature(ctor, source_path));
                         }
-                        model_decl.has_destroy = node.has_destroy;
+                        model_decl.has_destruct = node.has_destruct;
                         out.declarations.push_back(std::move(model_decl));
                     } else if constexpr (std::is_same_v<T, cplus::ast::FunctionDecl>) {
                         if (node.name.parts.size() > 1) {

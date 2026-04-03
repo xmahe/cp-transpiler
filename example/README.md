@@ -98,7 +98,7 @@ cmake --build build --target cplus_example_app
 That will:
 
 1. locate the installed `cplus` executable
-2. transpile `example/cplus/demo.hp` and `example/cplus/demo.cp`
+2. transpile `example/src/demo.hp` and `example/src/demo.cp`
 3. compile the generated C together with `example/src/main.c`
 
 If CMake does not find `cplus` automatically, pass it explicitly:
@@ -109,10 +109,26 @@ cmake -S . -B build -DCPLUS_BUILD_EXAMPLE=ON -DCPLUS_EXECUTABLE=$HOME/.local/bin
 
 ## Files
 
-- `cplus/`: the source `c+` module
-- `include/cplus_types.h`: temporary fixed-width aliases used by the generated C
+- `src/demo.hp` and `src/demo.cp`: the source `c+` module
+- `src/cplus_types.h`: temporary fixed-width aliases used by the generated C
 - `src/main.c`: a tiny C program that enters `c+` through exported `Main`
 - `CMakeLists.txt`: the recommended build integration pattern
+
+## Current Example
+
+The current demo intentionally stays inside the subset the compiler already lowers well:
+
+- `export_c fn Main() -> i32` is the C entry point
+- a local `Thing thing;` shows local-object `Construct` / `Destruct`
+- enum string conversion is shown through the generated helper
+
+Right now, enum `ToString` is available as a generated C helper function, so the example uses:
+
+```c+
+printf("%s", Demo___DemoState___ToString(kDemoStateHello));
+```
+
+That is not the final language surface. It is just the currently working form.
 
 ## Why The Example Is Off By Default
 
@@ -123,5 +139,5 @@ That keeps normal compiler builds and tests independent of whether `cplus` is in
 ## Current Limitation
 
 The current transpiler still assumes aliases such as `u8`, `u32`, and `i32` exist in the C compile. That is why this example uses `-include example/include/cplus_types.h`.
-
+The current transpiler still assumes aliases such as `u8`, `u32`, and `i32` exist in the C compile. That is why this example uses `-include example/src/cplus_types.h`.
 Longer-term, v1.0 should make the generated C prelude story cleaner.

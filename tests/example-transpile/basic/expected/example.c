@@ -3,7 +3,7 @@
 static u32 Board___Logger___instance_count;
 static u32 Board___DeviceController___instance_count;
 
-void Board___Logger___Destroy(Board___Logger* self) {
+void Board___Logger___Destruct(Board___Logger* self) {
     /* empty */
 }
 
@@ -32,7 +32,7 @@ static i32 Board___DeviceController___ValidateWindow(Board___DeviceController* s
     /* empty */
 }
 
-void Board___DeviceController___Destroy(Board___DeviceController* self) {
+void Board___DeviceController___Destruct(Board___DeviceController* self) {
     /* empty */
 }
 
@@ -100,7 +100,7 @@ void Board___DeviceController___Construct(Board___DeviceController* self, u32 de
     /* empty */
 }
 
-void Board___DeviceRepository___Destroy(Board___DeviceRepository* self) {
+void Board___DeviceRepository___Destruct(Board___DeviceRepository* self) {
     /* empty */
 }
 

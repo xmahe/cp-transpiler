@@ -10,8 +10,8 @@ typedef struct Board___Logger {
 typedef struct Board___Sensor {
 } Board___Sensor;
 
-void Board___Logger___Destroy(Board___Logger* self);
-void Board___Sensor___Destroy(Board___Sensor* self);
+void Board___Logger___Destruct(Board___Logger* self);
+void Board___Sensor___Destruct(Board___Sensor* self);
 void Board___Boot();
 
 #endif

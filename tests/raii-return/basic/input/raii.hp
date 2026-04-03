@@ -2,12 +2,12 @@ namespace Board {
 
 class Logger {
 public:
-    fn Destroy() -> void;
+    fn Destruct() -> void;
 }
 
 class Sensor {
 public:
-    fn Destroy() -> void;
+    fn Destruct() -> void;
 }
 
 fn Boot() -> void;

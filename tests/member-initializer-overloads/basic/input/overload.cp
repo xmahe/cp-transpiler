@@ -8,14 +8,14 @@ fn Child::Construct(f32 value) -> void {
     self->value = 0;
 }
 
-fn Child::Destroy() -> void {
+fn Child::Destruct() -> void {
     self->value = 0;
 }
 
 fn Parent::Construct(u32 value) -> void : child(value) {
 }
 
-fn Parent::Destroy() -> void {
+fn Parent::Destruct() -> void {
 }
 
 }

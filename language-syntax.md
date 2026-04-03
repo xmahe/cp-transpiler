@@ -120,7 +120,7 @@ private:
 public:
     u32 count;
     fn Construct() -> void;
-    fn Destroy() -> void;
+    fn Destruct() -> void;
     fn Reset() -> void;
 }
 ```
@@ -270,14 +270,14 @@ The current compiler already supports this style and rewrites method bodies towa
 Reserved method names:
 
 - `Construct`
-- `Destroy`
+- `Destruct`
 
 Examples:
 
 ```c
 fn Construct() -> void;
 fn Construct(u32 baud_rate) -> void;
-fn Destroy() -> void;
+fn Destruct() -> void;
 ```
 
 Construction sugar:
@@ -293,7 +293,7 @@ That means:
 - call the matching `Construct`
 
 `Construct` may be overloaded.
-`Destroy` may not.
+`Destruct` may not.
 
 If a member field cannot be default-constructed, the constructor should initialize it explicitly with a member initializer.
 

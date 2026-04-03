@@ -14,7 +14,7 @@ CleanupPlan RaiiPlanner::plan_for_locals(const std::vector<LocalObject>& locals)
 
         CleanupStep step;
         step.label = "__cleanup_" + std::to_string(index);
-        step.destroy_calls.push_back(local.type_name + "___Destroy(&" + local.name + ")");
+        step.destruct_calls.push_back(local.type_name + "___Destruct(&" + local.name + ")");
         plan.steps.push_back(std::move(step));
     }
 

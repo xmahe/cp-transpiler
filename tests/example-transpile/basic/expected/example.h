@@ -52,12 +52,12 @@ typedef struct Board___DeviceRepository {
     Board___Logger logger;
 } Board___DeviceRepository;
 
-void Board___Logger___Destroy(Board___Logger* self);
+void Board___Logger___Destruct(Board___Logger* self);
 i32 Board___Logger___WriteLine(Board___Logger* self, u8* data, u32 len);
 i32 Board___Logger___Flush(Board___Logger* self);
 void Board___Logger___SetPrefix(Board___Logger* self, u8* prefix);
 void Board___Logger___Construct(Board___Logger* self);
-void Board___DeviceController___Destroy(Board___DeviceController* self);
+void Board___DeviceController___Destruct(Board___DeviceController* self);
 i32 Board___DeviceController___Transfer(Board___DeviceController* self, u8* tx, u8* rx, u32 len);
 i32 Board___DeviceController___Lock(Board___DeviceController* self);
 i32 Board___DeviceController___Unlock(Board___DeviceController* self);
@@ -74,7 +74,7 @@ void Board___DeviceController___SetState(Board___DeviceController* self, Diagnos
 i32 Board___DeviceController___IsReady(Board___DeviceController* self);
 void Board___DeviceController___Construct(Board___DeviceController* self);
 void Board___DeviceController___Construct(Board___DeviceController* self, u32 device_id, u32 sample_rate_hz);
-void Board___DeviceRepository___Destroy(Board___DeviceRepository* self);
+void Board___DeviceRepository___Destruct(Board___DeviceRepository* self);
 i32 Board___DeviceRepository___InitializeDefaults(Board___DeviceRepository* self);
 i32 Board___DeviceRepository___Reset(Board___DeviceRepository* self);
 i32 Board___DeviceRepository___SelectActive(Board___DeviceRepository* self, u32 id);

@@ -179,7 +179,7 @@ Examples:
 For compile-time DI, lowering should resolve slot bindings before emission so the generated C only sees concrete field types.
 That keeps the backend simple and avoids runtime interface machinery.
 
-For constructor member initializers, lowering should emit member construction in declaration order and destroy members in reverse order when cleanup is needed.
+For constructor member initializers, lowering should emit member construction in declaration order and destruct members in reverse order when cleanup is needed.
 
 This is the most important translation stage.
 
@@ -297,7 +297,7 @@ Useful class metadata includes:
 - static field list
 - method list
 - constructor list
-- whether `Destroy` exists
+- whether `Destruct` exists
 
 That metadata becomes very useful once method-body rewriting and RAII lowering get more advanced.
 
@@ -352,7 +352,7 @@ This is still one of the major unfinished areas, but the architecture should sup
 The intended model:
 
 - track local class-type objects by lexical scope
-- inject `Destroy` calls in reverse order
+- inject `Destruct` calls in reverse order
 - rewrite `return` into cleanup + final return
 
 That may use compiler-generated `goto` in the emitted C.

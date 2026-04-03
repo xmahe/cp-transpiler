@@ -59,7 +59,7 @@ struct CFunction {
 struct CModule {
     std::string header_name;
     std::string source_name;
-    std::vector<std::string> includes;
+    std::vector<std::string> source_prelude_lines;
     std::vector<CStruct> structs;
     std::vector<CEnum> enums;
     std::vector<CMaybeType> maybe_types;

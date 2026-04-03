@@ -2,7 +2,7 @@
 
 static u32 Board___SerialPort____instance_count;
 
-void Board___SerialPort___Destroy(Board___SerialPort* self) {
+void Board___SerialPort___Destruct(Board___SerialPort* self) {
     /* empty */
 }
 

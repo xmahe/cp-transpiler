@@ -13,9 +13,9 @@ typedef struct Board___Outer {
     Board___Inner second;
 } Board___Outer;
 
-void Board___Inner___Destroy(Board___Inner* self);
+void Board___Inner___Destruct(Board___Inner* self);
 void Board___Inner___Construct(Board___Inner* self);
-void Board___Outer___Destroy(Board___Outer* self);
+void Board___Outer___Destruct(Board___Outer* self);
 void Board___Outer___Construct(Board___Outer* self);
 
 #endif

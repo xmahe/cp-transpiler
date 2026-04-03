@@ -219,7 +219,7 @@ struct ClassDecl {
     std::vector<FieldDecl> static_fields;
     std::vector<MethodDecl> methods;
     std::vector<MethodDecl> constructors;
-    bool has_destroy = false;
+    bool has_destruct = false;
     Span span{};
 };
 

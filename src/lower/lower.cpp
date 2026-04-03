@@ -51,10 +51,10 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
     CModule module;
     module.header_name = "generated.h";
     module.source_name = "generated.c";
-    module.includes.push_back(module.header_name);
     std::unordered_set<std::string> seen_maybe_types;
     std::unordered_map<std::string, std::string> class_name_map;
-    std::unordered_set<std::string> destroyable_class_names;
+    std::unordered_set<std::string> enum_names;
+    std::unordered_set<std::string> destructible_class_names;
     std::unordered_set<std::string> default_constructible_class_names;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> inject_bindings;
 
@@ -66,9 +66,11 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                     default_constructible_class_names.insert(klass->name);
                 }
             }
-            if (klass->has_destroy) {
-                destroyable_class_names.insert(klass->name);
+            if (klass->has_destruct) {
+                destructible_class_names.insert(klass->name);
             }
+        } else if (const auto* enumeration = std::get_if<cplus::model::EnumDecl>(&decl)) {
+            enum_names.insert(enumeration->name);
         } else if (const auto* bind = std::get_if<cplus::model::BindDecl>(&decl)) {
             inject_bindings[bind->owner_type][bind->slot_name] = bind->concrete_type;
         }
@@ -116,10 +118,10 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                         module.globals.push_back(global);
                     }
                     for (const auto& method : node.methods) {
-                        module.functions.push_back(lower_method(method, lowered_class.name, node.name, node.fields, method_names, class_name_map, inject_bindings, default_constructible_class_names, destroyable_class_names));
+                        module.functions.push_back(lower_method(method, lowered_class.name, node.name, node.fields, method_names, class_name_map, enum_names, inject_bindings, default_constructible_class_names, destructible_class_names));
                     }
                     for (const auto& ctor : node.constructors) {
-                        module.functions.push_back(lower_method(ctor, lowered_class.name, node.name, node.fields, method_names, class_name_map, inject_bindings, default_constructible_class_names, destroyable_class_names));
+                        module.functions.push_back(lower_method(ctor, lowered_class.name, node.name, node.fields, method_names, class_name_map, enum_names, inject_bindings, default_constructible_class_names, destructible_class_names));
                     }
                 } else if constexpr (std::is_same_v<T, cplus::model::EnumDecl>) {
                     module.enums.push_back(lower_enum(node));
@@ -128,7 +130,7 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                     for (const auto& param : node.signature.parameters) {
                         ensure_maybe(param.type);
                     }
-                    module.functions.push_back(lower_function(node, class_name_map, destroyable_class_names));
+                    module.functions.push_back(lower_function(node, class_name_map, enum_names, default_constructible_class_names, destructible_class_names));
                 } else if constexpr (std::is_same_v<T, cplus::model::InterfaceDecl>) {
                     for (const auto& method : node.methods) {
                         ensure_maybe(method.return_type);
@@ -139,7 +141,10 @@ CModule Lowerer::lower(const cplus::sema::AnalysisResult& analysis) const {
                 } else if constexpr (std::is_same_v<T, cplus::model::NamespaceDecl>) {
                     (void)node;
                 } else if constexpr (std::is_same_v<T, cplus::model::RawCDecl>) {
-                    (void)node;
+                    const auto text = support::trim(node.text);
+                    if (!text.empty()) {
+                        module.source_prelude_lines.push_back(text);
+                    }
                 }
             },
             decl);
@@ -194,7 +199,9 @@ CEnum Lowerer::lower_enum(const cplus::model::EnumDecl& decl) const {
 CFunction Lowerer::lower_function(
     const cplus::model::FunctionDecl& decl,
     const std::unordered_map<std::string, std::string>& class_name_map,
-    const std::unordered_set<std::string>& destroyable_class_names) const {
+    const std::unordered_set<std::string>& enum_names,
+    const std::unordered_set<std::string>& default_constructible_class_names,
+    const std::unordered_set<std::string>& destructible_class_names) const {
     CFunction result;
     result.name = decl.signature.is_export_c
         ? decl.signature.name
@@ -203,10 +210,11 @@ CFunction Lowerer::lower_function(
     for (const auto& param : decl.signature.parameters) {
         result.parameters.push_back(CParameter{param.name, to_c_type(param.type, class_name_map)});
     }
-    const auto raii_body = rewrite_returns_with_raii(decl.body_source, result.return_type, class_name_map, destroyable_class_names);
+    const auto constructor_body = rewrite_local_class_constructors(decl.body_source, class_name_map, default_constructible_class_names);
+    const auto raii_body = rewrite_returns_with_raii(constructor_body, result.return_type, class_name_map, destructible_class_names);
     const auto local_names = collect_local_names(raii_body);
     const auto local_object_types = collect_local_object_types(raii_body, class_name_map);
-    result.body_lines = lower_body_lines(rewrite_method_body(raii_body, "", {}, local_names, {}, {}, local_object_types));
+    result.body_lines = lower_body_lines(rewrite_method_body(raii_body, "", {}, local_names, {}, enum_names, {}, local_object_types));
     result.linkage = decl.signature.is_static ? CLinkage::Internal : CLinkage::External;
     return result;
 }
@@ -218,9 +226,10 @@ CFunction Lowerer::lower_method(
     const std::vector<cplus::model::FieldDecl>& instance_fields,
     const std::unordered_set<std::string>& method_names,
     const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_set<std::string>& enum_names,
     const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
     const std::unordered_set<std::string>& default_constructible_class_names,
-    const std::unordered_set<std::string>& destroyable_class_names) const {
+    const std::unordered_set<std::string>& destructible_class_names) const {
     CFunction result;
     result.name = std::string(class_name) + "___" + sig.name;
     result.return_type = to_c_type(sig.return_type, class_name_map);
@@ -267,13 +276,14 @@ CFunction Lowerer::lower_method(
         }
         method_body_source = prepend_lines_to_body(std::move(construct_lines), method_body_source);
     }
+    method_body_source = rewrite_local_class_constructors(method_body_source, class_name_map, default_constructible_class_names);
     method_body_source = rewrite_returns_with_raii(
         method_body_source,
         result.return_type,
         class_name_map,
-        destroyable_class_names,
-        sig.name == "Destroy"
-            ? member_destroy_calls(instance_fields, source_class_name, class_name_map, inject_bindings, destroyable_class_names)
+        destructible_class_names,
+        sig.name == "Destruct"
+            ? member_destruct_calls(instance_fields, source_class_name, class_name_map, inject_bindings, destructible_class_names)
             : std::vector<std::string>{});
     result.body_lines = lower_method_body_lines(
         method_body_source,
@@ -283,6 +293,7 @@ CFunction Lowerer::lower_method(
         class_name,
         method_names,
         class_name_map,
+        enum_names,
         inject_bindings);
     result.linkage = (sig.is_static || sig.is_private) ? CLinkage::Internal : CLinkage::External;
     return result;
@@ -377,6 +388,7 @@ std::vector<std::string> Lowerer::lower_method_body_lines(
     std::string_view class_name,
     const std::unordered_set<std::string>& method_names,
     const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_set<std::string>& enum_names,
     const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings) {
     if (sig.is_static || body_source.empty()) {
         return lower_body_lines(body_source);
@@ -406,7 +418,7 @@ std::vector<std::string> Lowerer::lower_method_body_lines(
     }
     local_names.insert("self");
 
-    return lower_body_lines(rewrite_method_body(body_source, class_name, field_names, local_names, method_names, field_object_types, local_object_types));
+    return lower_body_lines(rewrite_method_body(body_source, class_name, field_names, local_names, method_names, enum_names, field_object_types, local_object_types));
 }
 
 std::string Lowerer::rewrite_method_body(
@@ -415,6 +427,7 @@ std::string Lowerer::rewrite_method_body(
     const std::unordered_set<std::string>& field_names,
     const std::unordered_set<std::string>& local_names,
     const std::unordered_set<std::string>& method_names,
+    const std::unordered_set<std::string>& enum_names,
     const std::unordered_map<std::string, std::string>& field_object_types,
     const std::unordered_map<std::string, std::string>& local_object_types) {
     if (body_source.empty()) {
@@ -449,6 +462,19 @@ std::string Lowerer::rewrite_method_body(
                 at_statement_start = false;
                 continue;
             }
+        }
+
+        if (token.kind == cplus::lex::TokenKind::Identifier &&
+            enum_names.find(token.lexeme) != enum_names.end() &&
+            local_names.find(token.lexeme) == local_names.end() &&
+            i + 2 < tokens.size() &&
+            tokens[i + 1].kind == cplus::lex::TokenKind::Punctuation && tokens[i + 1].lexeme == "::" &&
+            tokens[i + 2].kind == cplus::lex::TokenKind::Identifier) {
+            rewritten.append(tokens[i + 2].lexeme);
+            cursor = tokens[i + 2].span.end.offset;
+            i += 2;
+            at_statement_start = false;
+            continue;
         }
 
         if (token.kind == cplus::lex::TokenKind::Identifier &&
@@ -661,6 +687,148 @@ std::unordered_map<std::string, std::string> Lowerer::collect_local_object_types
     return local_types;
 }
 
+std::string Lowerer::rewrite_local_class_constructors(
+    std::string_view body_source,
+    const std::unordered_map<std::string, std::string>& class_name_map,
+    const std::unordered_set<std::string>& default_constructible_class_names) {
+    if (body_source.empty()) {
+        return std::string(body_source);
+    }
+
+    const auto tokens = cplus::lex::lex_source(std::string(body_source), "<construct-body>");
+    std::string rewritten;
+    std::size_t cursor = 0;
+    bool at_statement_start = true;
+
+    auto append_original = [&](std::size_t begin, std::size_t end) {
+        if (end > begin) {
+            rewritten.append(body_source.substr(begin, end - begin));
+        }
+    };
+
+    for (std::size_t i = 0; i < tokens.size(); ++i) {
+        const auto& token = tokens[i];
+        if (token.kind == cplus::lex::TokenKind::EndOfFile) {
+            break;
+        }
+
+        if (!at_statement_start) {
+            if (token.kind == cplus::lex::TokenKind::Punctuation &&
+                (token.lexeme == ";" || token.lexeme == "{" || token.lexeme == "}")) {
+                at_statement_start = true;
+            }
+            continue;
+        }
+
+        std::size_t start = i;
+        if (tokens[start].kind == cplus::lex::TokenKind::KeywordStatic) {
+            at_statement_start = false;
+            continue;
+        }
+        if (start + 1 >= tokens.size() ||
+            tokens[start].kind != cplus::lex::TokenKind::Identifier ||
+            tokens[start + 1].kind != cplus::lex::TokenKind::Identifier) {
+            at_statement_start = false;
+            continue;
+        }
+
+        const auto& type_name = tokens[start].lexeme;
+        const auto mangled_it = class_name_map.find(type_name);
+        if (mangled_it == class_name_map.end()) {
+            at_statement_start = false;
+            continue;
+        }
+
+        const auto& local_name = tokens[start + 1].lexeme;
+        std::size_t statement_end = start + 2;
+        int paren_depth = 0;
+        while (statement_end < tokens.size()) {
+            const auto& current = tokens[statement_end];
+            if (current.kind == cplus::lex::TokenKind::Punctuation) {
+                if (current.lexeme == "(") {
+                    ++paren_depth;
+                } else if (current.lexeme == ")") {
+                    --paren_depth;
+                } else if (current.lexeme == ";" && paren_depth == 0) {
+                    break;
+                } else if ((current.lexeme == "=" || current.lexeme == "{" || current.lexeme == "[") && paren_depth == 0) {
+                    statement_end = tokens.size();
+                    break;
+                }
+            }
+            ++statement_end;
+        }
+        if (statement_end >= tokens.size() || tokens[statement_end].lexeme != ";") {
+            at_statement_start = false;
+            continue;
+        }
+
+        std::vector<std::string> args;
+        bool has_constructor_sugar = false;
+        if (start + 2 < statement_end &&
+            tokens[start + 2].kind == cplus::lex::TokenKind::Punctuation &&
+            tokens[start + 2].lexeme == "(") {
+            has_constructor_sugar = true;
+            std::size_t arg_begin = start + 3;
+            paren_depth = 0;
+            for (std::size_t j = start + 3; j < statement_end; ++j) {
+                if (tokens[j].kind == cplus::lex::TokenKind::Punctuation) {
+                    if (tokens[j].lexeme == "(") {
+                        ++paren_depth;
+                    } else if (tokens[j].lexeme == ")") {
+                        if (paren_depth == 0) {
+                            if (arg_begin < j) {
+                                args.push_back(support::trim(std::string(body_source.substr(
+                                    tokens[arg_begin].span.begin.offset,
+                                    tokens[j - 1].span.end.offset - tokens[arg_begin].span.begin.offset))));
+                            }
+                            break;
+                        }
+                        --paren_depth;
+                    } else if (tokens[j].lexeme == "," && paren_depth == 0) {
+                        if (arg_begin < j) {
+                            args.push_back(support::trim(std::string(body_source.substr(
+                                tokens[arg_begin].span.begin.offset,
+                                tokens[j - 1].span.end.offset - tokens[arg_begin].span.begin.offset))));
+                        } else {
+                            args.push_back("");
+                        }
+                        arg_begin = j + 1;
+                    }
+                }
+            }
+        }
+
+        if (!has_constructor_sugar && default_constructible_class_names.find(type_name) == default_constructible_class_names.end()) {
+            at_statement_start = false;
+            continue;
+        }
+
+        append_original(cursor, tokens[start].span.begin.offset);
+        rewritten.append(type_name);
+        rewritten.push_back(' ');
+        rewritten.append(local_name);
+        rewritten.append(";");
+        rewritten.push_back('\n');
+        rewritten.append(mangled_it->second);
+        rewritten.append("___Construct(&");
+        rewritten.append(local_name);
+        for (const auto& arg : args) {
+            if (!arg.empty()) {
+                rewritten.append(", ");
+                rewritten.append(arg);
+            }
+        }
+        rewritten.append(");");
+        cursor = tokens[statement_end].span.end.offset;
+        i = statement_end;
+        at_statement_start = true;
+    }
+
+    append_original(cursor, body_source.size());
+    return rewritten;
+}
+
 std::vector<std::string> Lowerer::member_construct_calls(
     const std::vector<cplus::model::FieldDecl>& instance_fields,
     std::string_view source_class_name,
@@ -685,26 +853,26 @@ std::vector<std::string> Lowerer::member_construct_calls(
     return calls;
 }
 
-std::vector<std::string> Lowerer::member_destroy_calls(
+std::vector<std::string> Lowerer::member_destruct_calls(
     const std::vector<cplus::model::FieldDecl>& instance_fields,
     std::string_view source_class_name,
     const std::unordered_map<std::string, std::string>& class_name_map,
     const std::unordered_map<std::string, std::unordered_map<std::string, std::string>>& inject_bindings,
-    const std::unordered_set<std::string>& destroyable_class_names) {
+    const std::unordered_set<std::string>& destructible_class_names) {
     std::vector<std::string> calls;
     for (auto it = instance_fields.rbegin(); it != instance_fields.rend(); ++it) {
         std::string field_type_name = resolve_field_class_name(*it, source_class_name, inject_bindings);
         if (field_type_name.empty()) {
             field_type_name = it->type.spelling;
         }
-        if (destroyable_class_names.find(field_type_name) == destroyable_class_names.end()) {
+        if (destructible_class_names.find(field_type_name) == destructible_class_names.end()) {
             continue;
         }
         const auto mangled_it = class_name_map.find(field_type_name);
         if (mangled_it == class_name_map.end()) {
             continue;
         }
-        calls.push_back(mangled_it->second + "___Destroy(&self->" + it->name + ");");
+        calls.push_back(mangled_it->second + "___Destruct(&self->" + it->name + ");");
     }
     return calls;
 }
@@ -744,9 +912,9 @@ std::string Lowerer::rewrite_returns_with_raii(
     std::string_view body_source,
     const CType& return_type,
     const std::unordered_map<std::string, std::string>& class_name_map,
-    const std::unordered_set<std::string>& destroyable_class_names,
+    const std::unordered_set<std::string>& destructible_class_names,
     std::vector<std::string> extra_cleanup_lines) {
-    if (body_source.empty() || (destroyable_class_names.empty() && extra_cleanup_lines.empty())) {
+    if (body_source.empty() || (destructible_class_names.empty() && extra_cleanup_lines.empty())) {
         return std::string(body_source);
     }
 
@@ -818,7 +986,7 @@ std::string Lowerer::rewrite_returns_with_raii(
             if (start + 1 < tokens.size() &&
                 tokens[start].kind == cplus::lex::TokenKind::Identifier &&
                 tokens[start + 1].kind == cplus::lex::TokenKind::Identifier &&
-                destroyable_class_names.find(tokens[start].lexeme) != destroyable_class_names.end()) {
+                destructible_class_names.find(tokens[start].lexeme) != destructible_class_names.end()) {
                 const auto it = class_name_map.find(tokens[start].lexeme);
                 if (it != class_name_map.end()) {
                     locals.push_back(LocalLifetime{tokens[start + 1].lexeme, it->second, i, scope_stack.back()});
@@ -952,7 +1120,7 @@ std::string Lowerer::rewrite_returns_with_raii(
                     for (auto local_it = it->second.rbegin(); local_it != it->second.rend(); ++local_it) {
                         const auto& local = locals[*local_it];
                         rewritten.append(local.type_name);
-                        rewritten.append("___Destroy(&");
+                        rewritten.append("___Destruct(&");
                         rewritten.append(local.name);
                         rewritten.append(");\n");
                     }
@@ -1003,7 +1171,7 @@ std::string Lowerer::rewrite_returns_with_raii(
                 for (auto local_it = it->second.rbegin(); local_it != it->second.rend(); ++local_it) {
                     const auto& local = locals[*local_it];
                     rewritten.append(local.type_name);
-                    rewritten.append("___Destroy(&");
+                    rewritten.append("___Destruct(&");
                     rewritten.append(local.name);
                     rewritten.append(");\n");
                 }
@@ -1025,7 +1193,7 @@ std::string Lowerer::rewrite_returns_with_raii(
         for (auto it = active_set.rbegin(); it != active_set.rend(); ++it) {
             const auto& local = locals[*it];
             rewritten.append(local.type_name);
-            rewritten.append("___Destroy(&");
+            rewritten.append("___Destruct(&");
             rewritten.append(local.name);
             rewritten.append(");\n");
         }

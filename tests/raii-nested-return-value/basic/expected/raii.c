@@ -1,6 +1,6 @@
 #include "raii.h"
 
-void Board___Logger___Destroy(Board___Logger* self) {
+void Board___Logger___Destruct(Board___Logger* self) {
     /* empty */
 }
 
@@ -14,8 +14,8 @@ u32 Board___ReadValue() {
     goto __cleanup_0;
         }
     __cleanup_0:
-    Board___Logger___Destroy(&inner_logger);
-    Board___Logger___Destroy(&logger);
+    Board___Logger___Destruct(&inner_logger);
+    Board___Logger___Destruct(&logger);
     return __cplus_ret;
 }
 

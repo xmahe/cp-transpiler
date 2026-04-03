@@ -40,7 +40,7 @@ class Logger {
 public:
     static u32 instance_count;
     fn Construct() -> void;
-    fn Destroy() -> void;
+    fn Destruct() -> void;
     fn WriteLine(u8* data, u32 len) -> i32;
     fn Flush() -> i32;
     fn SetPrefix(u8* prefix) -> void;
@@ -65,7 +65,7 @@ public:
 
     fn Construct() -> void;
     fn Construct(u32 device_id, u32 sample_rate_hz) -> void;
-    fn Destroy() -> void;
+    fn Destruct() -> void;
 
     implementation fn Transfer(u8* tx, u8* rx, u32 len) -> i32;
     implementation fn Lock() -> i32;
@@ -91,7 +91,7 @@ public:
     DeviceController secondary;
     Logger logger;
     fn Construct(u32 sample_rate_hz) -> void;
-    fn Destroy() -> void;
+    fn Destruct() -> void;
     fn InitializeDefaults() -> i32;
     fn Reset() -> i32;
     fn SelectActive(u32 id) -> i32;

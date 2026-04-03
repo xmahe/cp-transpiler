@@ -7,7 +7,7 @@
 typedef struct Board___Logger {
 } Board___Logger;
 
-void Board___Logger___Destroy(Board___Logger* self);
+void Board___Logger___Destruct(Board___Logger* self);
 u32 Board___ReadValue();
 
 #endif

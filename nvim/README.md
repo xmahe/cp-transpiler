@@ -30,7 +30,7 @@ Or copy:
 - control flow: `if`, `else`, `for`, `while`, `switch`, `case`, `default`, `return`, `break`
 - builtin types: `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64`, `f32`, `f64`, `bool`, `void`
 - special type: `maybe<T>`
-- lifecycle names: `Construct`, `Destroy`
+- lifecycle names: `Construct`, `Destruct`
 - enum members in `kEnumValue` style
 - `_private_like_names`
 - names that follow `class`, `interface`, `enum`, `namespace`, and `fn`

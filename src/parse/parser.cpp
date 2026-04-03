@@ -744,8 +744,8 @@ void Parser::parse_class_body(ast::ClassDecl& decl) {
             if (method.name == "Construct") {
                 decl.constructors.push_back(method);
             } else {
-                if (method.name == "Destroy") {
-                    decl.has_destroy = true;
+                if (method.name == "Destruct") {
+                    decl.has_destruct = true;
                 }
                 decl.methods.push_back(method);
             }
@@ -934,11 +934,18 @@ ast::Declaration Parser::parse_bind_declaration() {
 
 ast::Declaration Parser::parse_raw_c() {
     const std::size_t start = current_index_;
-    while (!eof() && !(check(lex::TokenKind::Punctuation) && current().lexeme == ";")) {
-        ++current_index_;
-    }
-    if (check(lex::TokenKind::Punctuation) && current().lexeme == ";") {
-        ++current_index_;
+    if (check(lex::TokenKind::Punctuation) && current().lexeme == "#") {
+        const auto line = current().span.begin.line;
+        while (!eof() && current().span.begin.line == line) {
+            ++current_index_;
+        }
+    } else {
+        while (!eof() && !(check(lex::TokenKind::Punctuation) && current().lexeme == ";")) {
+            ++current_index_;
+        }
+        if (check(lex::TokenKind::Punctuation) && current().lexeme == ";") {
+            ++current_index_;
+        }
     }
     const std::size_t end_index = current_index_ == 0 ? 0 : current_index_ - 1;
     const std::string text = slice(tokens_[start].span.begin.offset, tokens_[end_index].span.end.offset);

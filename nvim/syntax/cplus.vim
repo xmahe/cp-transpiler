@@ -11,7 +11,7 @@ syntax keyword cplusRepeat for while
 syntax keyword cplusStatement return break
 syntax keyword cplusBoolean true false null
 syntax keyword cplusBuiltinType void bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 usize isize
-syntax keyword cplusLifecycle Construct Destroy
+syntax keyword cplusLifecycle Construct Destruct
 syntax keyword cplusReserved continue goto
 syntax keyword cplusSelf self
 

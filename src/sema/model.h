@@ -98,7 +98,7 @@ struct ClassDecl {
     std::vector<FieldDecl> static_fields;
     std::vector<FunctionSignature> methods;
     std::vector<FunctionSignature> constructors;
-    bool has_destroy = false;
+    bool has_destruct = false;
     SourceRange range{};
 };
 

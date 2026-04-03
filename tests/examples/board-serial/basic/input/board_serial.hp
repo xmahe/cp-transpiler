@@ -38,7 +38,7 @@ public:
     u32 last_activity_tick;
 
     fn Construct(u32 port_id, u32 baud_rate) -> void;
-    fn Destroy() -> void;
+    fn Destruct() -> void;
     implementation fn Start() -> void;
     implementation fn Stop() -> void;
     implementation fn Send(u8* data, u32 length) -> i32;

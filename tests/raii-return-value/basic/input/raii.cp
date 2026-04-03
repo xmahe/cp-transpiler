@@ -1,6 +1,6 @@
 namespace Board {
 
-fn Logger::Destroy() -> void {
+fn Logger::Destruct() -> void {
 }
 
 fn ReadValue() -> u32 {

@@ -143,6 +143,13 @@ std::string CEmitter::emit_source(const cplus::lower::CModule& module) const {
     append_line(out, "#include \"" + module.header_name + "\"");
     append_line(out, "");
 
+    for (const auto& line : module.source_prelude_lines) {
+        append_line(out, line);
+    }
+    if (!module.source_prelude_lines.empty()) {
+        append_line(out, "");
+    }
+
     for (const auto& global : module.globals) {
         emit_global(out, global);
     }

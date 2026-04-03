@@ -1,16 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
 project(cp-example)
-set(CPLUS_EXAMPLE_NAME demo)
-set(CPLUS_EXAMPLE_INPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cplus)
-set(CPLUS_EXAMPLE_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-set(CPLUS_EXAMPLE_GENERATED_C ${CPLUS_EXAMPLE_GENERATED_DIR}/${CPLUS_EXAMPLE_NAME}.c)
-set(CPLUS_EXAMPLE_GENERATED_H ${CPLUS_EXAMPLE_GENERATED_DIR}/${CPLUS_EXAMPLE_NAME}.h)
 
 set(CPLUS_EXECUTABLE "" CACHE FILEPATH "Path to the installed cplus transpiler")
 
-if(NOT CPLUS_EXECUTABLE)
+if(CPLUS_EXECUTABLE STREQUAL "")
+    unset(CPLUS_EXECUTABLE CACHE)
     find_program(CPLUS_EXECUTABLE
-        NAMES cplus ${CMAKE_PROJECT_NAME}
+        NAMES cplus
         HINTS
             $ENV{HOME}/.local/bin
             /usr/local/bin
@@ -19,50 +15,44 @@ if(NOT CPLUS_EXECUTABLE)
     )
 endif()
 
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+
 add_custom_command(
     OUTPUT
-        ${CPLUS_EXAMPLE_GENERATED_C}
-        ${CPLUS_EXAMPLE_GENERATED_H}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CPLUS_EXAMPLE_GENERATED_DIR}
-    COMMAND ${CPLUS_EXECUTABLE} -o ${CPLUS_EXAMPLE_GENERATED_DIR} ${CPLUS_EXAMPLE_INPUT_DIR}
+        ${GENERATED_DIR}/demo.c
+        ${GENERATED_DIR}/demo.h
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${GENERATED_DIR}
+    COMMAND ${CPLUS_EXECUTABLE} -o ${GENERATED_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src
     DEPENDS
-        ${CPLUS_EXAMPLE_INPUT_DIR}/demo.hp
-        ${CPLUS_EXAMPLE_INPUT_DIR}/demo.cp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/demo.hp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/demo.cp
     COMMENT "Transpiling example c+ sources"
     VERBATIM
 )
 
-add_custom_target(example_transpile
-    DEPENDS
-        ${CPLUS_EXAMPLE_GENERATED_C}
-        ${CPLUS_EXAMPLE_GENERATED_H}
-)
-
 add_executable(cplus_example_app
     src/main.c
-    ${CPLUS_EXAMPLE_GENERATED_H}
-    ${CPLUS_EXAMPLE_GENERATED_C}
+    ${GENERATED_DIR}/demo.h
+    ${GENERATED_DIR}/demo.c
 )
 
-add_dependencies(cplus_example_app example_transpile)
-
 set_source_files_properties(
-    ${CPLUS_EXAMPLE_GENERATED_C}
-    ${CPLUS_EXAMPLE_GENERATED_H}
+    ${GENERATED_DIR}/demo.c
+    ${GENERATED_DIR}/demo.h
     PROPERTIES GENERATED TRUE
 )
 
 set_source_files_properties(
     src/main.c
-    PROPERTIES OBJECT_DEPENDS "${CPLUS_EXAMPLE_GENERATED_H}"
+    PROPERTIES OBJECT_DEPENDS "${GENERATED_DIR}/demo.h"
 )
 
 target_include_directories(cplus_example_app PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CPLUS_EXAMPLE_GENERATED_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${GENERATED_DIR}
 )
 
 target_compile_options(cplus_example_app PRIVATE
     -include
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/cplus_types.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cplus_types.h
 )

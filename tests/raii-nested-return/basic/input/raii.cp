@@ -1,9 +1,9 @@
 namespace Board {
 
-fn Logger::Destroy() -> void {
+fn Logger::Destruct() -> void {
 }
 
-fn Sensor::Destroy() -> void {
+fn Sensor::Destruct() -> void {
 }
 
 fn Boot() -> void {

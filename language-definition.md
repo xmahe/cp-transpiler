@@ -319,7 +319,7 @@ In practice this gives you a simple board-wiring model:
 `c+` uses fixed lifetime names:
 
 - `Construct`
-- `Destroy`
+- `Destruct`
 
 Example:
 
@@ -327,7 +327,7 @@ Example:
 class Logger {
 public:
     fn Construct() -> void;
-    fn Destroy() -> void;
+    fn Destruct() -> void;
 }
 ```
 
@@ -392,8 +392,8 @@ The language wants RAII-style cleanup.
 That means:
 
 - local class objects should clean up automatically
-- nested member objects should be constructed and destroyed in order
-- `Destroy` should run on normal scope exit and `return`
+- nested member objects should be constructed and destructed in order
+- `Destruct` should run on normal scope exit and `return`
 
 Example intent:
 
@@ -410,7 +410,7 @@ conceptually becomes:
 void Boot(void) {
     Logger logger;
     Logger___Construct(&logger);
-    Logger___Destroy(&logger);
+    Logger___Destruct(&logger);
     return;
 }
 ```

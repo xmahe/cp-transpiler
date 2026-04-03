@@ -1,0 +1,11 @@
+namespace Demo {
+
+enum Greeting {
+    kIdle,
+    kBusy,
+    kN,
+}
+
+export_c fn Main() -> i32;
+
+}

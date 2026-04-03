@@ -1,0 +1,12 @@
+namespace Board {
+
+class Logger {
+public:
+    fn Construct() -> void;
+    fn Destruct() -> void;
+    fn Ping() -> void;
+}
+
+export_c fn Boot() -> i32;
+
+}

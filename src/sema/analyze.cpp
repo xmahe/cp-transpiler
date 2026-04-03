@@ -263,7 +263,7 @@ void Analyzer::validate_class(const model::ClassDecl& decl, const AnalysisOption
     }
 
     for (const auto& method : decl.methods) {
-        if (method.name != "Destroy") {
+        if (method.name != "Destruct") {
             validate_name_style(method.name, "CamelCase", method.range, result);
         }
         validate_function_signature(method, options, result);
@@ -335,8 +335,8 @@ void Analyzer::validate_class(const model::ClassDecl& decl, const AnalysisOption
         }
     }
 
-    if (decl.has_destroy && method_names.find("Destroy") == method_names.end()) {
-        add_diagnostic(result, model::Severity::Warning, decl.range, "class declares Destroy handling without Destroy method");
+    if (decl.has_destruct && method_names.find("Destruct") == method_names.end()) {
+        add_diagnostic(result, model::Severity::Warning, decl.range, "class declares Destruct handling without Destruct method");
     }
 
     for (const auto& field : decl.fields) {
@@ -682,7 +682,7 @@ void Analyzer::validate_function_body_restrictions(const model::FunctionDecl& de
 }
 
 void Analyzer::validate_name_style(const std::string& name, const std::string& expected, const model::SourceRange& range, AnalysisResult& result) const {
-    if (expected == "CamelCase" && (name == "Construct" || name == "Destroy")) {
+    if (expected == "CamelCase" && (name == "Construct" || name == "Destruct")) {
         return;
     }
     const bool ok = (expected == "CamelCase") ? is_camel_case(name) : is_snake_case(name);
